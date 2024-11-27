@@ -1,3 +1,6 @@
+import os
+os.environ["PYOPENGL_PLATFORM"] = "egl"
+
 from enum import Enum
 from typing import Any, Dict, Optional, Sequence, Tuple
 

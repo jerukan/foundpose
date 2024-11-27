@@ -2,7 +2,7 @@
     "gen_templates_opts": {
         "version": "v1",
         "object_dataset": "lmo",
-        "object_lids": [9],
+        "object_lids": [1,5,6,8,9,10,11,12],
         "num_viewspheres": 1,
         "min_num_viewpoints": 57,
         "num_inplane_rotations": 14,

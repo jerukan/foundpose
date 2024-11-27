@@ -3,14 +3,12 @@
 """Miscellaneous functions."""
 
 import dataclasses
-from dataclasses import asdict
 import math
 import time
 import cv2
 import uuid
 
 from typing import Any, Dict, List, Optional, Tuple, Type, Union, Mapping
-from collections import namedtuple
 
 import numpy as np
 from PIL import Image
@@ -380,10 +378,14 @@ def map_fields(func, obj, only_type=object):
         ty = type(obj)
         if isinstance(obj, Mapping):
             return ty((k, map_fields(func, v, only_type)) for (k, v) in obj.items())
-        else:
-            # NamedTuple or dataclass
+        elif dataclasses.is_dataclass(obj):
             return ty(
-                **{k: map_fields(func, v, only_type) for (k, v) in asdict(obj).items()}
+                **{k: map_fields(func, v, only_type) for (k, v) in dataclasses.asdict(obj).items()}
+            )
+        else:
+            # NamedTuple
+            return ty(
+                **{k: map_fields(func, v, only_type) for (k, v) in obj._asdict().items()}
             )
     elif isinstance(obj, tuple):
         return tuple(map_fields(func, v, only_type) for v in obj)

@@ -245,6 +245,7 @@ def infer(opts: InferOpts) -> None:
 
         # Get the object mesh and meta information.
         model_path = bop_model_props["model_tpath"].format(obj_id=object_lid)
+        print(model_path)
         object_mesh = inout.load_ply(model_path)
         models_info = inout.load_json(bop_model_props["models_info_path"], keys_to_int=True)
         object_syms = bop_misc.get_symmetry_transformations(
