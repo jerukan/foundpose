@@ -10,7 +10,7 @@
         "max_num_triangles": 20000,
         "back_face_culling": false,
         "texture_size": [1024, 1024],
-        "ssaa_factor": 4.0,
+        "ssaa_factor": 1.0,
         "background_type": "black",
         "light_type": "multi_directional",
         "features_patch_size": 14,

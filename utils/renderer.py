@@ -88,6 +88,7 @@ class PyrenderRasterizer(renderer_base.RendererBase):
         obj_id: int,
         model_path: str,
         mesh_color: Optional[structs.Color] = None,
+        obj_in_meters: bool = True,
         **kwargs: Any,
     ) -> None:
         """Adds an object model to the renderer.
@@ -105,7 +106,8 @@ class PyrenderRasterizer(renderer_base.RendererBase):
         if obj_id not in self.object_meshes:
             
             trimesh_model = trimesh.load(model_path)
-            trimesh_model.vertices = trimesh_model.vertices/1000.0
+            if not obj_in_meters:
+                trimesh_model.vertices = trimesh_model.vertices / 1000.0
             # Color the model.
             if mesh_color:
                 num_vertices = trimesh_model.vertices.shape[0]
@@ -217,6 +219,7 @@ class PyrenderRasterizer(renderer_base.RendererBase):
         debug: bool = False,
     ) -> Dict[renderer_base.RenderType, structs.ArrayData]:
         """Renders an object model in the specified pose (see the base class)."""
+        print(camera_model_c2w)
 
         times = {}
         times["init_renderer"] = time.time()
