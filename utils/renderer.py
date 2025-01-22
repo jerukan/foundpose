@@ -55,6 +55,7 @@ class PyrenderRasterizer(renderer_base.RendererBase):
     def get_object_model(self,
         obj_id: int,
         mesh_color: Optional[structs.Color] = None,
+        obj_in_meters: bool = True,
         **kwargs: Any,
         ) -> trimesh.Trimesh:
         """Gets the object model.
@@ -68,7 +69,8 @@ class PyrenderRasterizer(renderer_base.RendererBase):
         # Load the object model.
         object_model_path = self.model_path.format(obj_id=obj_id)
         trimesh_model = trimesh.load(object_model_path)
-        trimesh_model.vertices = trimesh_model.vertices/1000.0
+        if not obj_in_meters:
+            trimesh_model.vertices = trimesh_model.vertices/1000.0
 
         # Color the model.
         if mesh_color:
@@ -135,6 +137,7 @@ class PyrenderRasterizer(renderer_base.RendererBase):
         render_types: Sequence[RenderType],
         return_tensors: bool = False,
         debug: bool = False,
+        obj_in_meters: bool = True,
         **kwargs: Any,
     ) -> Dict[RenderType, structs.ArrayData]:
         """Renders an object model in the specified pose.
@@ -160,6 +163,7 @@ class PyrenderRasterizer(renderer_base.RendererBase):
             camera_model_c2w=camera_model_c2w,
             render_types=render_types,
             return_tensors=return_tensors,
+            obj_in_meters=obj_in_meters,
             debug=debug,
         )
 
@@ -170,6 +174,7 @@ class PyrenderRasterizer(renderer_base.RendererBase):
         render_types: Sequence[renderer_base.RenderType],
         mesh_colors: Optional[Sequence[structs.Color]] = None,
         return_tensors: bool = False,
+        obj_in_meters: bool = True,
         debug: bool = False,
         **kwargs: Any,
     ) -> Dict[renderer_base.RenderType, structs.ArrayData]:
@@ -201,6 +206,7 @@ class PyrenderRasterizer(renderer_base.RendererBase):
             camera_model_c2w=camera_model_c2w,
             render_types=render_types,
             return_tensors=return_tensors,
+            obj_in_meters=obj_in_meters,
             debug=debug,
         )
 
@@ -216,6 +222,7 @@ class PyrenderRasterizer(renderer_base.RendererBase):
         camera_model_c2w: structs.CameraModel,
         render_types: Sequence[renderer_base.RenderType],
         return_tensors: bool = False,
+        obj_in_meters: bool = True,
         debug: bool = False,
     ) -> Dict[renderer_base.RenderType, structs.ArrayData]:
         """Renders an object model in the specified pose (see the base class)."""
@@ -243,7 +250,8 @@ class PyrenderRasterizer(renderer_base.RendererBase):
         trans_c2w = camera_model_c2w.T_world_from_eye.dot(trans_cv2gl)
 
         # Convert translation from mm to m, as expected by pyrender.
-        trans_c2w[:3, 3] *= 0.001
+        if not obj_in_meters:
+            trans_c2w[:3, 3] *= 0.001
 
         # Camera for rendering.
         camera = pyrender.IntrinsicsCamera(
@@ -251,7 +259,7 @@ class PyrenderRasterizer(renderer_base.RendererBase):
             fy=camera_model_c2w.f[1],
             cx=camera_model_c2w.c[0],
             cy=camera_model_c2w.c[1],
-            znear=0.1,
+            znear=0.05,
             zfar=3000.0  
         )
 

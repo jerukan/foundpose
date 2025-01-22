@@ -154,8 +154,8 @@ def synthesize_templates(opts: GenTemplatesOpts) -> None:
     # Define radii of the view spheres on which we will sample viewpoints.
     # The specified number of radii is sampled uniformly in the range of
     # camera-object distances from the test split of the specified dataset.
-    # arbitrary depth range idk, in mm
-    depth_range = np.array([100.0, 500.0])
+    # arbitrary depth range idk, in meters
+    depth_range = np.array([1.0, 3.0])
     min_depth = np.min(depth_range)
     max_depth = np.max(depth_range)
     depth_range_size = max_depth - min_depth
@@ -163,7 +163,6 @@ def synthesize_templates(opts: GenTemplatesOpts) -> None:
     viewsphere_radii = []
     for depth_cell_id in range(opts.num_viewspheres):
         viewsphere_radii.append(min_depth + (depth_cell_id + 0.5) * depth_cell_size)
-    viewsphere_radii = [2000.0]
 
     # Generate viewpoints from which the object model will be rendered.
     views_sphere = []
