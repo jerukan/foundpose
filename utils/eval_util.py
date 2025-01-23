@@ -310,7 +310,7 @@ class EvaluatorPose:
             self.result_ids
         ):
 
-            cnos_time = self.detection_times[(scene_id, img_id)]
+            # cnos_time = self.detection_times[(scene_id, img_id)]
 
             if len(self.mssd) == 0:
                 result_info.append(
@@ -324,7 +324,7 @@ class EvaluatorPose:
                         "R": self.R[i],
                         "t": self.t[i],
                         "time": self.time[i],
-                        "cnos_time": cnos_time,
+                        # "cnos_time": cnos_time,
                     }
                 )
             else:
@@ -339,7 +339,7 @@ class EvaluatorPose:
                         "R": self.R[i],
                         "t": self.t[i],
                         "time": self.time[i],
-                        "cnos_time": cnos_time,
+                        # "cnos_time": cnos_time,
                         "mspd": self.mspd[i],
                         "mssd": self.mssd[i],
                         "mssd_n": self.mssd_n[i],

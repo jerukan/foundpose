@@ -2,6 +2,7 @@ import os
 os.environ["PYOPENGL_PLATFORM"] = "egl"
 
 from enum import Enum
+import logging
 from typing import Any, Dict, Optional, Sequence, Tuple
 
 import time
@@ -9,11 +10,13 @@ import time
 import numpy as np
 import trimesh
 import pyrender
-from utils.misc import tensor_to_array
+from utils.misc import tensor_to_array, array_to_tensor
 from utils import renderer_base, structs
 
 from PIL import Image
 import os.path as osp
+
+logger = logging.getLogger(__name__)
 
 class RenderType(Enum):
     """The rendering type.
@@ -70,7 +73,7 @@ class PyrenderRasterizer(renderer_base.RendererBase):
         object_model_path = self.model_path.format(obj_id=obj_id)
         trimesh_model = trimesh.load(object_model_path)
         if not obj_in_meters:
-            trimesh_model.vertices = trimesh_model.vertices/1000.0
+            trimesh_model.vertices = trimesh_model.vertices / 1000.0
 
         # Color the model.
         if mesh_color:
@@ -138,6 +141,7 @@ class PyrenderRasterizer(renderer_base.RendererBase):
         return_tensors: bool = False,
         debug: bool = False,
         obj_in_meters: bool = True,
+        light_intensity: float = 2.4,
         **kwargs: Any,
     ) -> Dict[RenderType, structs.ArrayData]:
         """Renders an object model in the specified pose.
@@ -164,6 +168,7 @@ class PyrenderRasterizer(renderer_base.RendererBase):
             render_types=render_types,
             return_tensors=return_tensors,
             obj_in_meters=obj_in_meters,
+            light_intensity=light_intensity,
             debug=debug,
         )
 
@@ -175,6 +180,7 @@ class PyrenderRasterizer(renderer_base.RendererBase):
         mesh_colors: Optional[Sequence[structs.Color]] = None,
         return_tensors: bool = False,
         obj_in_meters: bool = True,
+        light_intensity: float = 2.4,
         debug: bool = False,
         **kwargs: Any,
     ) -> Dict[renderer_base.RenderType, structs.ArrayData]:
@@ -186,8 +192,9 @@ class PyrenderRasterizer(renderer_base.RendererBase):
 
         # Add meshes to the scene.
         for mesh_id, mesh in enumerate(meshes_in_w):
-            # Scale the mesh from mm to m (expected by pyrender).
-            mesh.vertices /= 1000.0,
+            if not obj_in_meters:
+                # Scale the mesh from mm to m (expected by pyrender).
+                mesh.vertices /= 1000.0
 
             # Color the mesh.
             if mesh_colors:
@@ -207,6 +214,7 @@ class PyrenderRasterizer(renderer_base.RendererBase):
             render_types=render_types,
             return_tensors=return_tensors,
             obj_in_meters=obj_in_meters,
+            light_intensity=light_intensity,
             debug=debug,
         )
 
@@ -223,6 +231,7 @@ class PyrenderRasterizer(renderer_base.RendererBase):
         render_types: Sequence[renderer_base.RenderType],
         return_tensors: bool = False,
         obj_in_meters: bool = True,
+        light_intensity: float = 2.4,
         debug: bool = False,
     ) -> Dict[renderer_base.RenderType, structs.ArrayData]:
         """Renders an object model in the specified pose (see the base class)."""
@@ -269,7 +278,7 @@ class PyrenderRasterizer(renderer_base.RendererBase):
         # Create light. 
         light = pyrender.SpotLight(
             color=np.ones(3),
-            intensity=2.4,
+            intensity=light_intensity,
             innerConeAngle=np.pi / 16.0,
             outerConeAngle=np.pi / 6.0,
         )
@@ -299,6 +308,7 @@ class PyrenderRasterizer(renderer_base.RendererBase):
             color = color.astype(np.float32) / 255.0
 
         # Convert the depth map to millimeters.
+        # note to self: depth should be saved in mm, not float meters
         if depth is not None:
             depth *= 1000.0
 
@@ -321,7 +331,7 @@ class PyrenderRasterizer(renderer_base.RendererBase):
         if return_tensors:
             for name in output.keys():
                 if output[name] is not None:
-                    output[name] = misc.array_to_tensor(output[name])
+                    output[name] = array_to_tensor(output[name])
 
         times["postprocess"] = time.time() - times["postprocess"]
 

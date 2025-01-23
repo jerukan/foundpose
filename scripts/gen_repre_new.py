@@ -51,10 +51,8 @@ def load_depth(path):
 
 class GenRepreOpts(NamedTuple):
     """Options that can be specified via the command line."""
-
-    dataset_path: str
-    object_path: str
     output_path: str
+    use_meters: bool = True
 
     # Feature extraction options.
     extractor_name: str = "dinov2_vits14_reg"
@@ -92,8 +90,6 @@ def generate_raw_repre(
 
     # Prepare a timer.
     timer = misc.Timer(enabled=debug)
-
-    dataset_path = opts.dataset_path
 
     # Load the template metadata.
     metadata_path = Path(
@@ -141,7 +137,9 @@ def generate_raw_repre(
         mask_image_arr = load_im(mask_path)
 
         image_chw = array_to_tensor(image_arr).to(torch.float32).permute(2,0,1).to(device) / 255.0
-        depth_image_hw = array_to_tensor(depth_image_arr).to(torch.float32).to(device)
+        if opts.use_meters:
+            # depth is best saved as mm, so convert as needed
+            depth_image_hw = array_to_tensor(depth_image_arr).to(torch.float32).to(device) / 1000.0
         object_mask_modal = array_to_tensor(mask_image_arr).to(torch.float32).to(device)
 
         # Get the object annotation.
@@ -232,8 +230,6 @@ def generate_repre(
 ) -> None:
 
     logger = logging.get_logger(level=logging.INFO if opts.debug else logging.WARNING)
-
-    dataset_path = opts.dataset_path
 
     # Prepare a timer.
     timer = misc.Timer(enabled=opts.debug)

@@ -1,8 +1,7 @@
 {
   "gen_repre_opts": {
-      "dataset_path": "/scratch/jeyan/barreldata/results/barrelddt1/mesh-renders",
-      "object_path": "/scratch/jeyan/barreldata/models3d/barrelsingle-scaled.ply",
       "output_path": "/scratch/jeyan/foundpose/output_barrel",
+      "use_meters": true,
       "extractor_name": "dinov2_version=vits14-reg_stride=14_facet=token_layer=9_logbin=0_norm=1",
       "grid_cell_size": 14.0,
       "apply_pca": true,

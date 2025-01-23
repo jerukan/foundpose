@@ -4,6 +4,7 @@
 
 import datetime
 
+import json
 import os
 from pathlib import Path
 from PIL import Image
@@ -254,6 +255,8 @@ class InferOpts(NamedTuple):
     mask_path: str
     object_path: str
     output_path: str
+    cam_json_path: str
+    use_meters: bool
     max_sym_disc_step: float = 0.01
 
     # Cropping options.
@@ -377,7 +380,6 @@ def infer(opts: InferOpts) -> None:
 
     # Get the object mesh and meta information.
     model_path = opts.object_path
-    print(model_path)
     object_mesh = load_ply(model_path)
 
     max_vertices = 1000
@@ -393,8 +395,14 @@ def infer(opts: InferOpts) -> None:
         timer.start()
 
         # Camera parameters.
-        # transform is from GT, can just leave as identity
-        orig_camera_c2w = CameraModel(1920, 875, 1246.0, (960.0, 437.5), np.eye(4))
+        # transform is from GT, can we just leave as identity?
+        with open(Path(opts.cam_json_path), "r") as f:
+            camjson = json.load(f)
+        orig_camera_c2w = PinholePlaneCameraModel(
+            camjson["width"], camjson["height"],
+            (camjson["fx"], camjson["fy"]), (camjson["cx"], camjson["cy"])
+        )
+        logger.info(f"camera info: {orig_camera_c2w}")
         orig_image_size = (
             orig_camera_c2w.width,
             orig_camera_c2w.height,
@@ -435,7 +443,6 @@ def infer(opts: InferOpts) -> None:
             right=right,
             bottom=bottom,
         )
-
         timer.start()
 
         # Optional cropping.
@@ -490,12 +497,13 @@ def infer(opts: InferOpts) -> None:
 
             # The virtual camera is becoming the main camera.
             camera_c2w = crop_camera_model_c2w
+        logger.info(f"cropped camera: {camera_c2w}")
 
         times["prep"] = timer.elapsed("Time for preparation")
         timer.start()
 
         # Extract feature map from the crop.
-        image_tensor_chw = array_to_tensor(image_np_hwc).to(torch.float32).permute(2,0,1).to(device)
+        image_tensor_chw = array_to_tensor(image_np_hwc).to(torch.float32).permute(2, 0, 1).to(device)
         image_tensor_bchw = image_tensor_chw.unsqueeze(0)
         extractor_output = extractor(image_tensor_bchw)
         feature_map_chw = extractor_output["feature_maps"][0]
@@ -581,7 +589,6 @@ def infer(opts: InferOpts) -> None:
         # Estimate coarse poses from corespondences.
         coarse_poses = []
         for corresp_id, corresp_curr in enumerate(corresp):
-
             # We need at least 3 correspondences for P3P.
             num_corresp = len(corresp_curr["coord_2d"])
             if num_corresp < 6:
@@ -607,6 +614,7 @@ def infer(opts: InferOpts) -> None:
             logger.info(
                 f"Quality of coarse pose {corresp_id}: {quality_coarse}"
             )
+            logger.info(f"Coarse pose fitted: {R_m2c_coarse}, {t_m2c_coarse}")
 
             if coarse_pose_success:
                 coarse_poses.append(
@@ -638,10 +646,7 @@ def infer(opts: InferOpts) -> None:
         # Select the final pose estimate.
         final_poses = []
         
-        if opts.final_pose_type in [
-            "best_coarse",
-        ]:
-
+        if opts.final_pose_type in ["best_coarse",]:
             # If no successful coarse pose, continue.
             if len(coarse_poses) == 0:
                 continue
@@ -649,14 +654,11 @@ def infer(opts: InferOpts) -> None:
             # Select the refined pose corresponding to the best coarse pose as the final pose.
             final_pose = None
 
-            if opts.final_pose_type in [
-                "best_coarse",
-            ]:
+            if opts.final_pose_type in ["best_coarse",]:
                 final_pose = coarse_poses[best_coarse_pose_id]
 
             if final_pose is not None:
                 final_poses.append(final_pose)
-
         else:
             raise ValueError(f"Unknown final pose type {opts.final_pose_type}")
 
@@ -676,7 +678,6 @@ def infer(opts: InferOpts) -> None:
 
         # Iterate over the final poses to collect visuals.
         for hypothesis_id, final_pose in enumerate(final_poses):
-
             # Visualizations and saving of results.
             vis_tiles = []
 
@@ -694,6 +695,7 @@ def infer(opts: InferOpts) -> None:
             pose_m2w = structs.ObjectPose(
                 R=trans_m2w[:3, :3], t=trans_m2w[:3, 3:]
             )
+            logger.info(f"final estimated pose {pose_m2w}")
 
             # Get image for visualization.
             vis_base_image = (255 * image_np_hwc).astype(np.uint8)
@@ -713,7 +715,7 @@ def infer(opts: InferOpts) -> None:
             pose_eval_dict_coarse = None
             pose_eval_dict = pose_evaluator.update_without_anno(
                 scene_id=0,
-                im_id=0,
+                im_id=i,
                 inst_id=0,
                 hypothesis_id=hypothesis_id,
                 object_repre_vertices=tensor_to_array(repre.vertices),
@@ -728,7 +730,6 @@ def infer(opts: InferOpts) -> None:
 
             # Optionally visualize the results.
             if opts.vis_results:
-
                 # IDs and scores of the matched templates.
                 matched_template_ids = [c["template_id"] for c in corresp]
                 matched_template_scores = [c["template_score"] for c in corresp]
@@ -756,6 +757,7 @@ def infer(opts: InferOpts) -> None:
                     inlier_thresh=(opts.pnp_inlier_thresh),
                     object_pose_m2w_coarse=pose_m2w_coarse,
                     pose_eval_dict_coarse=pose_eval_dict_coarse,
+                    obj_in_meters=opts.use_meters,
                     # For paper visualizations:
                     vis_for_paper=opts.vis_for_paper,
                     extractor=extractor,

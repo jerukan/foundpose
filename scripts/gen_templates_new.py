@@ -60,11 +60,11 @@ def save_depth(path, im):
 
 class GenTemplatesOpts(NamedTuple):
     """Options that can be specified via the command line."""
-
-    dataset_path: str
     object_path: str
     output_path: str
     cam_json_path: str
+    
+    use_meters: bool = True
 
     # Viewpoint options.
     num_viewspheres: int = 1
@@ -95,9 +95,6 @@ class GenTemplatesOpts(NamedTuple):
 
 
 def synthesize_templates(opts: GenTemplatesOpts) -> None: 
-
-    dataset_path = opts.dataset_path
-
     # Fix the random seed for reproducibility.
     np.random.seed(0)
 
@@ -268,6 +265,7 @@ def synthesize_templates(opts: GenTemplatesOpts) -> None:
                 camera_model_c2w=render_camera_model_c2w,
                 render_types=render_types,
                 return_tensors=False,
+                light_intensity=10.0,
                 debug=False,
             )
 

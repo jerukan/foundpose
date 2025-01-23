@@ -1,6 +1,5 @@
 {
   "gen_templates_opts": {
-      "dataset_path": "/scratch/jeyan/barreldata/results/barrelddt1/mesh-renders",
       "object_path": "/scratch/jeyan/barreldata/models3d/barrelsingle-scaled.ply",
       "output_path": "/scratch/jeyan/foundpose/output_barrel",
       "cam_json_path": "/scratch/jeyan/barreldata/divedata/camera.json",

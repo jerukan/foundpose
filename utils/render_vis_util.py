@@ -259,6 +259,7 @@ def create_object_mask(
     object_poses_m2w: Sequence[structs.ObjectPose],
     camera_c2w: structs.CameraModel,
     renderer: renderer_base.RendererBase,
+    obj_in_meters: bool = True,
     object_colors: Optional[Sequence[structs.Color]] = None,
     object_stickers: Optional[Sequence[str]] = None,
     fg_opacity: float = DEFAULT_FG_OPACITY,
@@ -295,9 +296,12 @@ def create_object_mask(
     object_idx = 0
     image_size = base_image.shape[:2]
 
-    object_mesh = renderer.get_object_model(obj_lid).copy()
+    object_mesh = renderer.get_object_model(obj_lid, obj_in_meters=obj_in_meters).copy()
 
-    obj_vertices = object_mesh.vertices*1000
+    # why does this need to be back in mm?
+    obj_vertices = object_mesh.vertices
+    if not obj_in_meters:
+        obj_vertices *= 1000
 
     vertices = geometry.transform_3d_points_numpy(
         misc.get_rigid_matrix(object_poses_m2w[object_idx]), obj_vertices

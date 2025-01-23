@@ -201,6 +201,7 @@ def vis_inference_results(
     vis_for_paper: bool = True,
     vis_for_teaser: bool = False,
     extractor: Any = None,
+    obj_in_meters=True,
 ):
 
     device = feature_map_chw.device
@@ -242,7 +243,7 @@ def vis_inference_results(
     query_feat_vis = None
     template_feat_vis = None
     if vis_feat_map:
-        template_tensor_chw = array_to_tensor(template).to(torch.float32)/255.0
+        template_tensor_chw = array_to_tensor(template).to(torch.float32) / 255.0
         template_tensor_bchw = template_tensor_chw.unsqueeze(0).to(device)
         extractor_output = extractor(template_tensor_bchw)
         template_feature_map_chw = extractor_output["feature_maps"][0]
@@ -324,6 +325,7 @@ def vis_inference_results(
                 object_poses_m2w=[object_pose_m2w_gt],
                 camera_c2w=camera_c2w,
                 renderer=renderer,
+                obj_in_meters=obj_in_meters,
                 object_colors=[(0.0, 0.0, 0.0)],
                 object_stickers=None,
                 fg_opacity=1.0,
@@ -377,6 +379,7 @@ def vis_inference_results(
             object_poses_m2w=[object_pose_m2w],
             camera_c2w=camera_c2w,
             renderer=renderer,
+            obj_in_meters=obj_in_meters,
             object_colors=[(0.0, 0.0, 0.0)],
             object_stickers=None,
             fg_opacity=1.0,

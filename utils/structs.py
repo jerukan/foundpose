@@ -108,7 +108,7 @@ class SceneAnnotation(NamedTuple):
 
     image: Optional[ArrayData] = None
     depth_image: Optional[ArrayData] = None
-    camera: Optional[List[List[Camera]]] = None
+    camera: Optional[List[List[CameraModel]]] = None
     objects_anno: Optional[List[List[ObjectAnnotation]]] = None
 
 class AlignedBox2f:
@@ -351,7 +351,7 @@ class CameraModel(abc.ABC):
 
     def __repr__(self):
         return (
-            f"{type(self).__name__}({self.width}x{self.height}, f={self.f} c={self.c}"
+            f"{type(self).__name__}({self.width}x{self.height}, f={self.f}, c={self.c}, T={self.T_world_from_eye})"
         )
 
     def to_json(self):

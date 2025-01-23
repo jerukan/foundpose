@@ -35,9 +35,7 @@ def estimate_pose(
             - nn_indices (num_points).: indices within the object representations
         camera_c2w: camera intrinsics.
     """
-
     if pnp_type == "opencv":
-
         object_points = tensor_to_array(corresp["coord_3d"]).astype(np.float32)
         image_points = tensor_to_array(corresp["coord_2d"]).astype(np.float32)
         K = misc.get_intrinsic_matrix(camera_c2w)

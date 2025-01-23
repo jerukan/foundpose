@@ -245,7 +245,6 @@ def infer(opts: InferOpts) -> None:
 
         # Get the object mesh and meta information.
         model_path = bop_model_props["model_tpath"].format(obj_id=object_lid)
-        print(model_path)
         object_mesh = inout.load_ply(model_path)
         models_info = inout.load_json(bop_model_props["models_info_path"], keys_to_int=True)
         object_syms = bop_misc.get_symmetry_transformations(
@@ -331,6 +330,7 @@ def infer(opts: InferOpts) -> None:
 
             # Camera parameters.
             orig_camera_c2w = sample.camera
+            logger.info(f"camera info: {orig_camera_c2w}")
             orig_image_size = (
                 orig_camera_c2w.width,
                 orig_camera_c2w.height,
@@ -768,6 +768,7 @@ def infer(opts: InferOpts) -> None:
                             # For paper visualizations:
                             vis_for_paper=opts.vis_for_paper,
                             extractor=extractor,
+                            obj_in_meters=False,
                         )
                         timer.elapsed("Time for visualization")
 
