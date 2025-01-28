@@ -449,7 +449,8 @@ def vis_inference_results(
 
         vis_base_util.plot_images(imgs=[tpls_tile], dpi=dpi)
 
-        if not vis_for_paper:
+        # if not vis_for_paper:
+        if True:
             tpls_ids_str = ""
             tpls_scores_str = ""
             for tpl_id in range(len(matched_template_ids)):
@@ -549,7 +550,8 @@ def vis_inference_results(
         h=image_height,
     )
 
-    if not vis_for_paper:
+    # if not vis_for_paper:
+    if True:
         p5, p10, p20, p40, p80 = (
             np.percentile(corresp["nn_dists"], 5),
             np.percentile(corresp["nn_dists"], 10),

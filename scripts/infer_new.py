@@ -631,11 +631,11 @@ def infer(opts: InferOpts) -> None:
         # Find the best coarse pose.
         best_coarse_quality = None
         best_coarse_pose_id = 0
+        qualities = [p["quality"] for p in coarse_poses]
+        sortidxs = np.argsort(qualities)[::-1]
+
         for coarse_pose_id, pose in enumerate(coarse_poses):
-            if (
-                best_coarse_quality is None
-                or pose["quality"] > best_coarse_quality
-            ):
+            if best_coarse_quality is None or pose["quality"] > best_coarse_quality:
                 best_coarse_pose_id = coarse_pose_id
                 best_coarse_quality = pose["quality"]
 
@@ -654,11 +654,16 @@ def infer(opts: InferOpts) -> None:
             # Select the refined pose corresponding to the best coarse pose as the final pose.
             final_pose = None
 
-            if opts.final_pose_type in ["best_coarse",]:
-                final_pose = coarse_poses[best_coarse_pose_id]
+            final_pose = coarse_poses[best_coarse_pose_id]
 
             if final_pose is not None:
                 final_poses.append(final_pose)
+        elif opts.final_pose_type in ["top5_coarse",]:
+            if len(coarse_poses) == 0:
+                continue
+            topidxs = sortidxs[:5]
+            for idx in topidxs:
+                final_poses.append(coarse_poses[idx])
         else:
             raise ValueError(f"Unknown final pose type {opts.final_pose_type}")
 

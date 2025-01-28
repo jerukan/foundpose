@@ -1,0 +1,15 @@
+{
+  "gen_repre_opts": {
+      "output_path": "/scratch/jeyan/foundpose/output_depthcharge",
+      "use_meters": true,
+      "extractor_name": "dinov2_version=vits14-reg_stride=14_facet=token_layer=9_logbin=0_norm=1",
+      "grid_cell_size": 14.0,
+      "apply_pca": true,
+      "pca_components": 256,
+      "cluster_features": true,
+      "cluster_num": 2048,
+      "template_desc_opts": {
+          "desc_type": "tfidf"
+      }
+  }
+}

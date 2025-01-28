@@ -1,7 +1,7 @@
 {
   "gen_templates_opts": {
-      "object_path": "/scratch/jeyan/barreldata/models3d/barrelsingle-scaled-subdivide.ply",
-      "output_path": "/scratch/jeyan/foundpose/output_barrel",
+      "object_path": "/scratch/jeyan/barreldata/models3d/depth_charge_mark_9_mod_1-scaled.ply",
+      "output_path": "/scratch/jeyan/foundpose/output_depthcharge",
       "cam_json_path": "/scratch/jeyan/barreldata/divedata/camera.json",
       "num_viewspheres": 1,
       "min_num_viewpoints": 57,
