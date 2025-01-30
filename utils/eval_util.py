@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 
 import os
-
-from typing import Dict, List
+from pathlib import Path
+from typing import Dict, List, Union
 
 import numpy as np
 from utils import (
@@ -63,6 +63,7 @@ class EvaluatorPose:
         self.obj_ids = []
         self.inst_ids = []
         self.hypothesis_ids = []
+        self.img_paths = []
 
         self.metrics = {
             "mspd": self.mspd,
@@ -241,6 +242,7 @@ class EvaluatorPose:
         time_per_inst: Dict,
         corresp: Dict,
         inlier_radius: float = 10,
+        img_path: Union[str, Path]=None,
     ):
 
         # Transformations to the crop camera.
@@ -275,6 +277,7 @@ class EvaluatorPose:
 
         # Assign the score as the many to many aware inlier ratio.
         score = inliers_est_err[str(int(inlier_radius))]
+        logger.info(f"Score for hypothesis {hypothesis_id}: {score}")
 
         R_est, t_est = trans_m2oc[:3, :3], trans_m2oc[:3, 3:]
 
@@ -289,6 +292,7 @@ class EvaluatorPose:
         self.obj_ids.append(obj_lid)
         self.inst_ids.append(inst_id)
         self.hypothesis_ids.append(hypothesis_id)
+        self.img_paths.append(str(img_path))
 
         self.inliers_est_err.append(inliers_est_err)
 
@@ -320,6 +324,7 @@ class EvaluatorPose:
                         "obj_id": str(obj_id),
                         "inst_id": str(inst_id),
                         "hypothesis_id": str(hypothesis_id),
+                        "img_path": self.img_paths[i],
                         "score": str(self.score[i]),
                         "R": self.R[i],
                         "t": self.t[i],

@@ -141,7 +141,6 @@ def synthesize_templates(opts: GenTemplatesOpts) -> None:
             camera_model.c[1] * opts.ssaa_factor,
         )
     )
-    print("camera model created")
 
     # Build a renderer.
     render_types = [RenderType.COLOR, RenderType.DEPTH, RenderType.MASK]
@@ -197,7 +196,6 @@ def synthesize_templates(opts: GenTemplatesOpts) -> None:
 
     # Prepare output folder.
     output_dir = Path(opts.output_path, "templates")
-    print("output_dir: ", output_dir)
     if os.path.exists(output_dir) and not opts.overwrite:
         raise ValueError(f"Output directory already exists: {output_dir}")
     os.makedirs(output_dir, exist_ok=True)
@@ -313,7 +311,6 @@ def synthesize_templates(opts: GenTemplatesOpts) -> None:
                     ),
                     viewport_rel_pad=opts.crop_rel_pad,
                 )
-                print(crop_camera_model_c2w)
 
                 # Map the images to the virtual camera.
                 for output_key in output.keys():

@@ -156,7 +156,6 @@ class PyrenderRasterizer(renderer_base.RendererBase):
             A dictionary with the rendering output (an RGB image, a depth image,
             a mask, a normal map, etc.).
         """
-
         # Create a scene for the object model if it does not exist yet.
         if obj_id not in self.object_scenes:
             self.add_object_model(obj_id)
@@ -235,7 +234,6 @@ class PyrenderRasterizer(renderer_base.RendererBase):
         debug: bool = False,
     ) -> Dict[renderer_base.RenderType, structs.ArrayData]:
         """Renders an object model in the specified pose (see the base class)."""
-        print(camera_model_c2w)
 
         times = {}
         times["init_renderer"] = time.time()

@@ -402,7 +402,6 @@ def infer(opts: InferOpts) -> None:
             camjson["width"], camjson["height"],
             (camjson["fx"], camjson["fy"]), (camjson["cx"], camjson["cy"])
         )
-        logger.info(f"camera info: {orig_camera_c2w}")
         orig_image_size = (
             orig_camera_c2w.width,
             orig_camera_c2w.height,
@@ -497,7 +496,6 @@ def infer(opts: InferOpts) -> None:
 
             # The virtual camera is becoming the main camera.
             camera_c2w = crop_camera_model_c2w
-        logger.info(f"cropped camera: {camera_c2w}")
 
         times["prep"] = timer.elapsed("Time for preparation")
         timer.start()
@@ -614,7 +612,6 @@ def infer(opts: InferOpts) -> None:
             logger.info(
                 f"Quality of coarse pose {corresp_id}: {quality_coarse}"
             )
-            logger.info(f"Coarse pose fitted: {R_m2c_coarse}, {t_m2c_coarse}")
 
             if coarse_pose_success:
                 coarse_poses.append(
@@ -700,7 +697,6 @@ def infer(opts: InferOpts) -> None:
             pose_m2w = structs.ObjectPose(
                 R=trans_m2w[:3, :3], t=trans_m2w[:3, 3:]
             )
-            logger.info(f"final estimated pose {pose_m2w}")
 
             # Get image for visualization.
             vis_base_image = (255 * image_np_hwc).astype(np.uint8)
@@ -731,6 +727,7 @@ def infer(opts: InferOpts) -> None:
                 time_per_inst=times,
                 corresp=best_corresp_np,
                 inlier_radius=(opts.pnp_inlier_thresh),
+                img_path=imgpath,
             )
 
             # Optionally visualize the results.
