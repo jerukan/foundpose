@@ -2,7 +2,7 @@
   "gen_repre_opts": {
       "output_path": "/scratch/jeyan/foundpose/output_barrelddt1",
       "use_meters": true,
-      "extractor_name": "dinov2_version=vits14-reg_stride=14_facet=token_layer=9_logbin=0_norm=1",
+      "extractor_name": "dinov2_version=vitl14-reg_stride=14_facet=token_layer=18_logbin=0_norm=1",
       "grid_cell_size": 14.0,
       "apply_pca": true,
       "pca_components": 256,
