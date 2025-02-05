@@ -1,8 +1,8 @@
 {
   "gen_templates_opts": {
       "object_path": "/scratch/jeyan/barreldata/models3d/barrelsingle-scaled-subdivide.ply",
-      "output_path": "/scratch/jeyan/foundpose/output_barrelddt1",
-      "cam_json_path": "/scratch/jeyan/barreldata/divedata/dive8/barrelddt1/camera.json",
+      "output_path": "/scratch/jeyan/foundpose/output_barrel4",
+      "cam_json_path": "/scratch/jeyan/barreldata/divedata/dive8/barrel4/camera.json",
       "num_viewspheres": 1,
       "min_num_viewpoints": 57,
       "num_inplane_rotations": 14,

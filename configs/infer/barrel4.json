@@ -4,7 +4,7 @@
       "mask_path": "/scratch/jeyan/barreldata/results/barrel4/masks",
       "object_path": "/scratch/jeyan/barreldata/models3d/barrelsingle-scaled-subdivide.ply",
       "output_path": "/scratch/jeyan/foundpose/output_barrel4",
-      "cam_json_path": "/scratch/jeyan/barreldata/divedata/camera.json",
+      "cam_json_path": "/scratch/jeyan/barreldata/divedata/dive8/barrel4/camera.json",
       "use_meters": true,
       "crop_rel_pad": 0.2,
       "crop_size": [

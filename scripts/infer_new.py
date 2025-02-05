@@ -428,7 +428,7 @@ def infer(opts: InferOpts) -> None:
 
         # Get the modal mask and amodal bounding box of the instance.
         # binary mask
-        orig_mask_modal = np.array(Image.open(maskpaths[i])) / 255.0
+        orig_mask_modal = np.array(Image.open(maskpaths[i]).convert("L")) / 255.0
         sumvert = np.sum(orig_mask_modal, axis=0)
         left = np.where(sumvert > 0)[0][0]
         right = np.where(sumvert > 0)[0][-1]

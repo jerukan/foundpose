@@ -1,10 +1,10 @@
 {
   "infer_opts": {
-      "dataset_path": "/scratch/jeyan/barreldata/results/barrelddt1/mesh-renders",
+      "dataset_path": "/scratch/jeyan/barreldata/divedata/dive8/barrelddt1",
       "mask_path": "/scratch/jeyan/barreldata/results/barrelddt1/masks",
       "object_path": "/scratch/jeyan/barreldata/models3d/barrelsingle-scaled-subdivide.ply",
       "output_path": "/scratch/jeyan/foundpose/output_barrelddt1",
-      "cam_json_path": "/scratch/jeyan/barreldata/results/barrelddt1/camera.json",
+      "cam_json_path": "/scratch/jeyan/barreldata/divedata/dive8/barrelddt1/camera.json",
       "use_meters": true,
       "crop_rel_pad": 0.2,
       "crop_size": [
