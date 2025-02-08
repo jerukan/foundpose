@@ -64,6 +64,7 @@ class EvaluatorPose:
         self.inst_ids = []
         self.hypothesis_ids = []
         self.img_paths = []
+        self.template_ids = []
 
         self.metrics = {
             "mspd": self.mspd,
@@ -243,6 +244,7 @@ class EvaluatorPose:
         corresp: Dict,
         inlier_radius: float = 10,
         img_path: Union[str, Path]=None,
+        template_id: int=None,
     ):
 
         # Transformations to the crop camera.
@@ -293,6 +295,7 @@ class EvaluatorPose:
         self.inst_ids.append(inst_id)
         self.hypothesis_ids.append(hypothesis_id)
         self.img_paths.append(str(img_path))
+        self.template_ids.append(template_id)
 
         self.inliers_est_err.append(inliers_est_err)
 
@@ -325,6 +328,7 @@ class EvaluatorPose:
                         "inst_id": str(inst_id),
                         "hypothesis_id": str(hypothesis_id),
                         "img_path": self.img_paths[i],
+                        "template_id": str(self.template_ids[i]),
                         "score": str(self.score[i]),
                         "R": self.R[i],
                         "t": self.t[i],
