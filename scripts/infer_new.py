@@ -118,11 +118,13 @@ def robustlosstorch(x: torch.Tensor, a=-5, c=0.5):
 
 def descriptor_from_pose(
     q: torch.Tensor, t: torch.Tensor, camera: CameraModel, patchvtxs: torch.Tensor,
-    featmap: torch.Tensor, patchsize: int
+    featmap: torch.Tensor, patchsize: int, device=None
 ):
+    if device is None:
+        device = "cuda" if torch.cuda.is_available() else "cpu"
     T = roma.RigidUnitQuat(q, t)
-    camf = torch.tensor(camera.f).cuda()
-    camc = torch.tensor(camera.c).cuda()
+    camf = torch.tensor(camera.f).float().to(device)
+    camc = torch.tensor(camera.c).float().to(device)
     projected = camera.project(T[None].apply(patchvtxs)) * camf + camc
     patchproj = projected / patchsize
     projfeatures = feature_util.sample_feature_map_at_points(featmap, patchproj, featmap.shape[1:])
@@ -131,7 +133,8 @@ def descriptor_from_pose(
 
 def featuremetric_loss(
     q: torch.Tensor, t: torch.Tensor, camera: CameraModel, patchdescs: torch.Tensor,
-    patchvtxs: torch.Tensor, featmap: torch.Tensor, patchsize: int, a: float=-5, c: float=0.5
+    patchvtxs: torch.Tensor, featmap: torch.Tensor, patchsize: int, a: float=-5, c: float=0.5,
+    device=None
 ):
     """
     Args:
@@ -142,21 +145,22 @@ def featuremetric_loss(
     # template descriptor + 3d point from patches inside mask
     # coarse R and t, need to parametrize R as quaternion or axangle
     # tfm is 6d [*axangle, *t]
-    projfeatures = descriptor_from_pose(q, t, camera, patchvtxs, featmap, patchsize)
+    projfeatures = descriptor_from_pose(q, t, camera, patchvtxs, featmap, patchsize, device=device)
     featurediff = patchdescs - projfeatures
     return robustlosstorch(featurediff, a=a, c=c)
 
 
 def featuremetric_cost(
     q: torch.Tensor, t: torch.Tensor, camera: CameraModel, patchdescs: torch.Tensor,
-    patchvtxs: torch.Tensor, featmap: torch.Tensor, patchsize: int, a: float=-5, c: float=0.5
+    patchvtxs: torch.Tensor, featmap: torch.Tensor, patchsize: int, a: float=-5, c: float=0.5,
+    device=None
 ):
     """
     Args:
         q: quaternion input
         t: translation input
     """
-    return torch.sum(featuremetric_loss(q, t, camera, patchdescs, patchvtxs, featmap, patchsize, a=a, c=c))
+    return torch.sum(featuremetric_loss(q, t, camera, patchdescs, patchvtxs, featmap, patchsize, a=a, c=c, device=device))
 
 
 def infer(opts: InferOpts) -> None:
@@ -561,7 +565,6 @@ def infer(opts: InferOpts) -> None:
             pose_m2w_coarse = structs.ObjectPose(
                 R=trans_m2w[:3, :3], t=trans_m2w[:3, 3:]
             )
-            print(f"Coarse pose: {pose_m2w_coarse}")
 
             # featuremetric refinement
             template_id = final_pose["template_id"]
@@ -571,12 +574,12 @@ def infer(opts: InferOpts) -> None:
             # all x_i values
             allxi = repre.vertices[feattempmask]
             Fq = feature_map_chw_proj
-            qtorch = roma.rotmat_to_unitquat(torch.tensor(pose_m2w_coarse.R)).float().cuda().requires_grad_()
-            ttorch = torch.tensor(pose_m2w_coarse.t.reshape(-1)).float().cuda().requires_grad_()
+            qtorch = roma.rotmat_to_unitquat(torch.tensor(pose_m2w_coarse.R)).float().to(device).requires_grad_()
+            ttorch = torch.tensor(pose_m2w_coarse.t.reshape(-1)).float().to(device).requires_grad_()
             optimizer = torch.optim.Adam([qtorch, ttorch], lr=0.01)
 
             for _ in range(100):
-                loss = featuremetric_cost(qtorch, ttorch, camera_c2w, allpi, allxi, Fq, opts.grid_cell_size)
+                loss = featuremetric_cost(qtorch, ttorch, orig_camera_c2w, allpi, allxi, Fq, opts.grid_cell_size, device=device)
                 loss.backward()
                 optimizer.step()
                 with torch.no_grad():
@@ -585,7 +588,6 @@ def infer(opts: InferOpts) -> None:
             pose_m2w = structs.ObjectPose(
                 R=roma.unitquat_to_rotmat(qtorch).detach().cpu().numpy(), t=ttorch.detach().cpu().numpy().reshape(3, 1)
             )
-            print(f"Refined pose: {pose_m2w}")
 
             # Get image for visualization.
             vis_base_image = (255 * image_np_hwc).astype(np.uint8)
@@ -618,6 +620,7 @@ def infer(opts: InferOpts) -> None:
                 inlier_radius=(opts.pnp_inlier_thresh),
                 img_path=imgpath,
                 template_id=final_pose["template_id"],
+                object_pose_m2w_coarse=pose_m2w_coarse,
             )
 
             # Optionally visualize the results.

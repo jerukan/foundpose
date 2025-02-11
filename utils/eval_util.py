@@ -63,8 +63,11 @@ class EvaluatorPose:
         self.obj_ids = []
         self.inst_ids = []
         self.hypothesis_ids = []
+
         self.img_paths = []
         self.template_ids = []
+        self.R_coarse = []
+        self.t_coarse = []
 
         self.metrics = {
             "mspd": self.mspd,
@@ -245,6 +248,7 @@ class EvaluatorPose:
         inlier_radius: float = 10,
         img_path: Union[str, Path]=None,
         template_id: int=None,
+        object_pose_m2w_coarse: structs.ObjectPose=None,
     ):
 
         # Transformations to the crop camera.
@@ -294,10 +298,20 @@ class EvaluatorPose:
         self.obj_ids.append(obj_lid)
         self.inst_ids.append(inst_id)
         self.hypothesis_ids.append(hypothesis_id)
-        self.img_paths.append(str(img_path))
-        self.template_ids.append(template_id)
 
         self.inliers_est_err.append(inliers_est_err)
+
+        if object_pose_m2w_coarse is not None:
+            trans_w2oc_coarse = np.linalg.inv(orig_camera_c2w.T_world_from_eye)
+            trans_m2oc_coarse = trans_w2oc_coarse.dot(misc.get_rigid_matrix(object_pose_m2w_coarse))
+            R_est_coarse, t_est_coarse = trans_m2oc_coarse[:3, :3], trans_m2oc_coarse[:3, 3:]
+            self.R_coarse.append(R_est_coarse)
+            self.t_coarse.append(t_est_coarse)
+        else:
+            self.R_coarse.append(None)
+            self.t_coarse.append(None)
+        self.img_paths.append(str(img_path))
+        self.template_ids.append(template_id)
 
         return {
             "inliers_est": inliers_est,
@@ -316,10 +330,9 @@ class EvaluatorPose:
         for i, (scene_id, img_id, obj_id, inst_id, hypothesis_id) in enumerate(
             self.result_ids
         ):
-
             # cnos_time = self.detection_times[(scene_id, img_id)]
-
             if len(self.mssd) == 0:
+                # no GT evaluation info
                 result_info.append(
                     {
                         "scene_id": str(scene_id),
@@ -333,6 +346,8 @@ class EvaluatorPose:
                         "R": self.R[i],
                         "t": self.t[i],
                         "time": self.time[i],
+                        "R_coarse": self.R_coarse[i],
+                        "t_coarse": self.t_coarse[i],
                         # "cnos_time": cnos_time,
                     }
                 )
