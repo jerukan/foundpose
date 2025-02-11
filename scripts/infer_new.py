@@ -579,6 +579,7 @@ def infer(opts: InferOpts) -> None:
             optimizer = torch.optim.Adam([qtorch, ttorch], lr=0.01)
 
             for _ in range(100):
+                optimizer.zero_grad()
                 loss = featuremetric_cost(qtorch, ttorch, orig_camera_c2w, allpi, allxi, Fq, opts.grid_cell_size, device=device)
                 loss.backward()
                 optimizer.step()
