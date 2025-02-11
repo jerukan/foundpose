@@ -6,26 +6,26 @@ channels:
   - xformers
   - conda-forge
 dependencies:
-  - python=3.9
-  - pytorch::pytorch=2.3.0
-  - pytorch::pytorch-cuda=11.7.0 # GPU
-  - pytorch::torchvision=0.18.0
-  - omegaconf
-  - torchmetrics=0.10.3
-  - fvcore
-  - iopath
-  - torchinfo
-  - omegaconf
-  - faiss-gpu=1.8.0 # GPU
-  - scipy=1.13.0
-  - kiwisolver=1.3.1
-  - matplotlib=3.8.4
-  - numpy=1.26.4
-  - pillow=10.3.0
+  - python=3.10
   - pip=24.0
-  - vispy=0.12.1
+  - cython=3.0.12
+  - faiss-gpu=1.8.0 # GPU
   - pip:
-    - cython==3.0.10
+    - torch==2.3.0
+    - torchvision==0.18.0
+    - --extra-index-url https://download.pytorch.org/whl/cu117
+    - omegaconf
+    - torchmetrics==0.10.3
+    - fvcore
+    - iopath
+    - torchinfo
+    - omegaconf
+    - scipy==1.13.0
+    - kiwisolver==1.3.1
+    - matplotlib==3.8.4
+    - numpy==1.26.4
+    - pillow==10.3.0
+    - vispy==0.12.1
     - xformers==0.0.26.post1 # GPU
     - git+https://github.com/facebookincubator/submitit
     - --extra-index-url https://pypi.nvidia.com
@@ -33,7 +33,7 @@ dependencies:
     - --extra-index-url https://pypi.nvidia.com
     - kornia==0.7.2
     - pypng==0.20220715.0
-    - triangle==20200424
+    - triangle==20250106
     - glumpy==1.2.1
     - pycocotools==2.0
     - scikit-learn==1.5.0
