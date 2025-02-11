@@ -20,7 +20,7 @@ import imageio
 import numpy as np
 
 import torch
-import transforms3d as t3d
+import roma
 
 from bop_toolkit_lib import inout
 
@@ -105,52 +105,58 @@ class InferOpts(NamedTuple):
     debug: bool = True
 
 
-def robustcost(x, a=-5, c=0.5):
-    return sum((abs(a - 2) / a) * (((x / c) ** 2 / abs(a - 2) + 1) ** (a / 2) - 1))
+def robustlosstorch(x: torch.Tensor, a=-5, c=0.5):
+    """
+    Args:
+        x (torch.Tensor): Nxd tensor
+    
+    Returns:
+        loss (torch.Tensor): N tensor
+    """
+    return torch.sum((abs(a - 2) / a) * (((x / c) ** 2 / abs(a - 2) + 1) ** (a / 2) - 1), dim=-1)
 
 
-def bilinear_interpolate(im, x, y):
-    """Copilot take the wheel."""
-    x = np.array(x)
-    y = np.array(y)
-    x0 = np.floor(x).astype(np.int64)
-    x1 = x0 + 1
-    y0 = np.floor(y).astype(np.int64)
-    y1 = y0 + 1
-
-    x0 = np.clip(x0, 0, im.shape[1] - 1)
-    x1 = np.clip(x1, 0, im.shape[1] - 1)
-    y0 = np.clip(y0, 0, im.shape[0] - 1)
-    y1 = np.clip(y1, 0, im.shape[0] - 1)
-
-    Ia = im[y0, x0]
-    Ib = im[y1, x0]
-    Ic = im[y0, x1]
-    Id = im[y1, x1]
-
-    wa = (x1 - x) * (y1 - y)
-    wb = (x1 - x) * (y - y0)
-    wc = (x - x0) * (y1 - y)
-    wd = (x - x0) * (y - y0)
-
-    return (wa * Ia + wb * Ib + wc * Ic + wd * Id)
+def descriptor_from_pose(
+    q: torch.Tensor, t: torch.Tensor, camera: CameraModel, patchvtxs: torch.Tensor,
+    featmap: torch.Tensor, patchsize: int
+):
+    T = roma.RigidUnitQuat(q, t)
+    camf = torch.tensor(camera.f).cuda()
+    camc = torch.tensor(camera.c).cuda()
+    projected = camera.project(T[None].apply(patchvtxs)) * camf + camc
+    patchproj = projected / patchsize
+    projfeatures = feature_util.sample_feature_map_at_points(featmap, patchproj, featmap.shape[1:])
+    return projfeatures
 
 
-def featuremetric_error(tfm, camera, patchdescs, patchvtxs, featmap, patchsize, a=-5, c=0.5):
+def featuremetric_loss(
+    q: torch.Tensor, t: torch.Tensor, camera: CameraModel, patchdescs: torch.Tensor,
+    patchvtxs: torch.Tensor, featmap: torch.Tensor, patchsize: int, a: float=-5, c: float=0.5
+):
+    """
+    Args:
+        q: quaternion input
+        t: translation input
+    """
     # need: projected features from every patch in query rgb image
     # template descriptor + 3d point from patches inside mask
     # coarse R and t, need to parametrize R as quaternion or axangle
     # tfm is 6d [*axangle, *t]
-    axangle = tfm[:3]
-    theta = np.linalg.norm(axangle)
-    R = t3d.axangles.axangle2mat(axangle, angle=theta, is_normalized=False)
-    t = tfm[3:]
-    totalerror = 0.0
-    for i, pi in enumerate(patchdescs):
-        xi = patchvtxs[i]
-        x, y = camera.eye_to_window(R @ xi + t) / patchsize
-        totalerror += robustcost(pi - bilinear_interpolate(featmap, x, y), a=a, c=c)
-    return totalerror
+    projfeatures = descriptor_from_pose(q, t, camera, patchvtxs, featmap, patchsize)
+    featurediff = patchdescs - projfeatures
+    return robustlosstorch(featurediff, a=a, c=c)
+
+
+def featuremetric_cost(
+    q: torch.Tensor, t: torch.Tensor, camera: CameraModel, patchdescs: torch.Tensor,
+    patchvtxs: torch.Tensor, featmap: torch.Tensor, patchsize: int, a: float=-5, c: float=0.5
+):
+    """
+    Args:
+        q: quaternion input
+        t: translation input
+    """
+    return torch.sum(featuremetric_loss(q, t, camera, patchdescs, patchvtxs, featmap, patchsize, a=a, c=c))
 
 
 def infer(opts: InferOpts) -> None:
@@ -552,9 +558,34 @@ def infer(opts: InferOpts) -> None:
             trans_c2w = camera_c2w.T_world_from_eye
 
             trans_m2w = trans_c2w.dot(misc.get_rigid_matrix(pose_est_m2c))
-            pose_m2w = structs.ObjectPose(
+            pose_m2w_coarse = structs.ObjectPose(
                 R=trans_m2w[:3, :3], t=trans_m2w[:3, 3:]
             )
+            print(f"Coarse pose: {pose_m2w_coarse}")
+
+            # featuremetric refinement
+            template_id = final_pose["template_id"]
+            feattempmask = repre.feat_to_template_ids == template_id
+            # all p_i values
+            allpi = repre.feat_vectors[feattempmask]
+            # all x_i values
+            allxi = repre.vertices[feattempmask]
+            Fq = feature_map_chw_proj
+            qtorch = roma.rotmat_to_unitquat(torch.tensor(pose_m2w_coarse.R)).float().cuda().requires_grad_()
+            ttorch = torch.tensor(pose_m2w_coarse.t.reshape(-1)).float().cuda().requires_grad_()
+            optimizer = torch.optim.Adam([qtorch, ttorch], lr=0.01)
+
+            for _ in range(100):
+                loss = featuremetric_cost(qtorch, ttorch, camera_c2w, allpi, allxi, Fq, opts.grid_cell_size)
+                loss.backward()
+                optimizer.step()
+                with torch.no_grad():
+                    qtorch = roma.quat_normalize(qtorch)
+
+            pose_m2w = structs.ObjectPose(
+                R=roma.unitquat_to_rotmat(qtorch).detach().cpu().numpy(), t=ttorch.detach().cpu().numpy().reshape(3, 1)
+            )
+            print(f"Refined pose: {pose_m2w}")
 
             # Get image for visualization.
             vis_base_image = (255 * image_np_hwc).astype(np.uint8)

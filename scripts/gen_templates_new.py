@@ -65,6 +65,7 @@ class GenTemplatesOpts(NamedTuple):
     cam_json_path: str
     
     use_meters: bool = True
+    light_intensity: float = 10.0
 
     # Viewpoint options.
     num_viewspheres: int = 1
@@ -152,6 +153,8 @@ def synthesize_templates(opts: GenTemplatesOpts) -> None:
     # camera-object distances from the test split of the specified dataset.
     # arbitrary depth range idk, in meters
     depth_range = np.array([1.0, 3.0])
+    if not opts.use_meters:
+        depth_range *= 100
     min_depth = np.min(depth_range)
     max_depth = np.max(depth_range)
     depth_range_size = max_depth - min_depth
@@ -220,7 +223,7 @@ def synthesize_templates(opts: GenTemplatesOpts) -> None:
 
     # Add the model to the renderer.
     model_path = opts.object_path
-    renderer.add_object_model(obj_id=0, model_path=model_path, debug=True)
+    renderer.add_object_model(obj_id=0, model_path=model_path, debug=True, obj_in_meters=opts.use_meters)
 
     # Prepare a metadata list.
     metadata_list = []
@@ -263,8 +266,9 @@ def synthesize_templates(opts: GenTemplatesOpts) -> None:
                 camera_model_c2w=render_camera_model_c2w,
                 render_types=render_types,
                 return_tensors=False,
-                light_intensity=10.0,
+                light_intensity=opts.light_intensity,
                 debug=False,
+                obj_in_meters=opts.use_meters,
             )
 
             # Convert rendered mask.

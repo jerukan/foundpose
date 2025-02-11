@@ -1,0 +1,28 @@
+{
+  "infer_opts": {
+      "dataset_path": "/scratch/jeyan/bop_datasets/duck/rgb",
+      "mask_path": "/scratch/jeyan/bop_datasets/duck/mask",
+      "object_path": "/scratch/jeyan/barreldata/models3d/duck.ply",
+      "output_path": "/scratch/jeyan/foundpose/output_duck",
+      "cam_json_path": "/scratch/jeyan/bop_datasets/lmo/camera.json",
+      "use_meters": false,
+      "crop_rel_pad": 0.2,
+      "crop_size": [
+          420,
+          420
+      ],
+      "use_detections": true,
+      "extractor_name": "dinov2_version=vitl14-reg_stride=14_facet=token_layer=18_logbin=0_norm=1",
+      "grid_cell_size": 14.0,
+      "match_template_type": "tfidf",
+      "match_top_n_templates": 5,
+      "match_feat_matching_type": "cyclic_buddies",
+      "match_top_k_buddies": 300,
+      "pnp_type": "opencv",
+      "pnp_ransac_iter": 400,
+      "pnp_inlier_thresh": 10.0,
+      "final_pose_type": "top5_coarse",
+      "num_preds_factor": 1,
+      "vis_results": true
+  }
+}

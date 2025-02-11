@@ -137,9 +137,10 @@ def generate_raw_repre(
         mask_image_arr = load_im(mask_path)
 
         image_chw = array_to_tensor(image_arr).to(torch.float32).permute(2,0,1).to(device) / 255.0
+        depth_image_hw = array_to_tensor(depth_image_arr).to(torch.float32).to(device)
         if opts.use_meters:
             # depth is best saved as mm, so convert as needed
-            depth_image_hw = array_to_tensor(depth_image_arr).to(torch.float32).to(device) / 1000.0
+            depth_image_hw /= 1000.0
         object_mask_modal = array_to_tensor(mask_image_arr).to(torch.float32).to(device)
 
         # Get the object annotation.
