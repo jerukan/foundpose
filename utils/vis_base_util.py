@@ -438,8 +438,10 @@ def save_plot_to_ndarray():
     fig = plt.gcf()
     fig.canvas.draw()
 
-    data = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
-    data = data.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+    # tostring_rgb got deprecated, need to drop alpha channel I guess
+    data = np.frombuffer(fig.canvas.tostring_argb(), dtype=np.uint8)
+    data = data.reshape(fig.canvas.get_width_height()[::-1] + (4,))
+    data = data[..., 1:]
 
     plt.clf()
     plt.cla()

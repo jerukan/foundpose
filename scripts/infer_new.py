@@ -12,15 +12,23 @@ import gc
 import time
 import struct
 
-from typing import List, NamedTuple, Optional, Tuple
+from typing import List, NamedTuple, Optional, Tuple, Any
 
 import cv2
 import imageio
-
+import visu3d as v3d
+import matplotlib.pyplot as plt
 import numpy as np
+import quaternion
+from tqdm import tqdm
 
 import torch
+from torch import nn
+from torch.utils.data import Dataset, DataLoader
+from torch.utils._pytree import tree_map
+from torchmetrics import Metric
 import roma
+import torch_levenberg_marquardt as tlm
 
 from bop_toolkit_lib import inout
 
@@ -96,6 +104,10 @@ class InferOpts(NamedTuple):
 
     final_pose_type: str = "best_coarse"
 
+    # Refinement options
+    max_iters_refinement: int = 2000
+    lr_refinement: float = 0.01
+
     # Other options.
     save_estimates: bool = True
     vis_results: bool = True
@@ -104,6 +116,32 @@ class InferOpts(NamedTuple):
     vis_for_paper: bool = True
     debug: bool = True
 
+
+def bilinear_interpolate_torch(im, x, y):
+    """ripped from https://gist.github.com/peteflorence/a1da2c759ca1ac2b74af9a83f69ce20e"""
+    x0 = torch.floor(x).long()
+    x1 = x0 + 1
+
+    y0 = torch.floor(y).long()
+    y1 = y0 + 1
+
+    # doesn't deal with edge and out of bounds, i don't care though
+    x0 = torch.clamp(x0, 0, im.shape[1] - 1)
+    x1 = torch.clamp(x1, 0, im.shape[1] - 1)
+    y0 = torch.clamp(y0, 0, im.shape[0] - 1)
+    y1 = torch.clamp(y1, 0, im.shape[0] - 1)
+
+    Ia = im[y0, x0]
+    Ib = im[y1, x0]
+    Ic = im[y0, x1]
+    Id = im[y1, x1]
+
+    wa = (x1.float() - x) * (y1.float() - y)
+    wb = (x1.float() - x) * (y - y0.float())
+    wc = (x - x0.float()) * (y1.float() - y)
+    wd = (x - x0.float()) * (y - y0.float())
+
+    return torch.t((torch.t(Ia) * wa)) + torch.t(torch.t(Ib) * wb) + torch.t(torch.t(Ic) * wc) + torch.t(torch.t(Id) * wd)
 
 def robustlosstorch(x: torch.Tensor, a=-5, c=0.5):
     """
@@ -120,14 +158,27 @@ def descriptor_from_pose(
     q: torch.Tensor, t: torch.Tensor, camera: CameraModel, patchvtxs: torch.Tensor,
     featmap: torch.Tensor, patchsize: int, device=None
 ):
+    """
+    $$F_q(\pi(Rx_i+t)/s)$$
+    """
     if device is None:
         device = "cuda" if torch.cuda.is_available() else "cpu"
     T = roma.RigidUnitQuat(q, t)
+    # cropped camera has a unique transform, close to identity
+    world2eye = v3d.Transform.from_matrix(camera.T_world_from_eye).inv
+    qcam = roma.rotmat_to_unitquat(torch.tensor(world2eye.R)).float().to(device)
+    camT = roma.RigidUnitQuat(qcam, torch.tensor(world2eye.t).float().to(device))
+    # need to convert (fx,fy), (cx,cy) to tensors
     camf = torch.tensor(camera.f).float().to(device)
     camc = torch.tensor(camera.c).float().to(device)
-    projected = camera.project(T[None].apply(patchvtxs)) * camf + camc
+    # consider first transform to still be world space (identity camera pose)
+    # then transform to cropped camera space
+    camvtxs = camT[None].apply(T[None].apply(patchvtxs))
+    projected = camera.project(camvtxs) * camf + camc
     patchproj = projected / patchsize
-    projfeatures = feature_util.sample_feature_map_at_points(featmap, patchproj, featmap.shape[1:])
+    # torch grid_sample doesn't play nicely with jacrev for some reason
+    # projfeatures = feature_util.sample_feature_map_at_points(featmap, patchproj, featmap.shape[1:])
+    projfeatures = bilinear_interpolate_torch(featmap.permute(1, 2, 0), patchproj[:, 0], patchproj[:, 1])
     return projfeatures
 
 
@@ -140,11 +191,16 @@ def featuremetric_loss(
     Args:
         q: quaternion input
         t: translation input
+        patchdescs (nxd)
+        patchvtxs (nx3)
+        featmap (dxaxa)
+
+    Returns:
+        loss (n tensor)
     """
     # need: projected features from every patch in query rgb image
     # template descriptor + 3d point from patches inside mask
     # coarse R and t, need to parametrize R as quaternion or axangle
-    # tfm is 6d [*axangle, *t]
     projfeatures = descriptor_from_pose(q, t, camera, patchvtxs, featmap, patchsize, device=device)
     featurediff = patchdescs - projfeatures
     return robustlosstorch(featurediff, a=a, c=c)
@@ -160,7 +216,194 @@ def featuremetric_cost(
         q: quaternion input
         t: translation input
     """
-    return torch.sum(featuremetric_loss(q, t, camera, patchdescs, patchvtxs, featmap, patchsize, a=a, c=c, device=device))
+    losses = featuremetric_loss(q, t, camera, patchdescs, patchvtxs, featmap, patchsize, a=a, c=c, device=device)
+    return torch.sum(losses)
+
+class PoseDescriptorModel(nn.Module):
+    def __init__(self, R, t, camera: CameraModel, featmap: torch.Tensor, patchsize: int, device=None):
+        super().__init__()
+        if device is None:
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+        else:
+            self.device = device
+        self.qtorch = nn.Parameter(roma.rotmat_to_unitquat(torch.tensor(R)).float().to(device), requires_grad=True)
+        self.ttorch = nn.Parameter(torch.tensor(t).float().to(device), requires_grad=True)
+        self.test = nn.Linear(256, 256)
+        self.camera = camera
+        self.featmap = featmap.to(device)
+        self.patchsize = patchsize
+
+    def forward(self, patchvtxs: torch.Tensor):
+        out = descriptor_from_pose(self.qtorch, self.ttorch, self.camera, patchvtxs, self.featmap, self.patchsize, device=self.device)
+        return self.test(out)
+        # return out
+
+class RobustLoss(tlm.loss.Loss):
+    def forward(self, y_true: torch.Tensor, y_pred: torch.Tensor) -> torch.Tensor:
+        return torch.mean(robustlosstorch(y_true - y_pred))
+
+    def residuals(self, y_true: torch.Tensor, y_pred: torch.Tensor) -> torch.Tensor:
+        return torch.sqrt(robustlosstorch(y_true - y_pred))
+
+class PatchDataset(Dataset):
+    def __init__(self, patchvtxs: torch.Tensor, patchdescs: torch.Tensor, device=None):
+        if device is None:
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+        else:
+            self.device = device
+        self.patchvtxs = patchvtxs.to(device)  # nx3
+        self.patchdescs = patchdescs.to(device)  # nxd
+
+    def __len__(self):
+        return len(self.patchvtxs)
+
+    def __getitem__(self, idx):
+        return self.patchvtxs[idx], self.patchdescs[idx]
+
+def tree_to_device(tree: Any, device: torch.device | str) -> Any:
+    """Recursively move all tensor leaves in a pytree to the specified device.
+
+    Args:
+        tree: The pytree containing tensors and non-tensor leaves.
+        device: The target device (e.g. CPU or GPU) to move the tensors to.
+
+    Returns:
+        A new pytree with every tensor moved to the specified device.
+    """
+    return tree_map(lambda x: x.to(device) if isinstance(x, torch.Tensor) else x, tree)
+
+def fit(
+    training_module,
+    dataloader: DataLoader,
+    epochs: int,
+    metrics: dict[str, Metric] | None = None,
+    overwrite_progress_bar: bool = True,
+    update_every_n_steps: int = 1,
+) -> None:
+    """Fit function with support for TrainingModule and torchmetrics.
+
+    Trains the model for a specified number of epochs. It supports logging metrics using
+    `torchmetrics` and provides detailed progress tracking using `tqdm`.
+
+    Args:
+        training_module: A `TrainingModule` encapsulating the training logic.
+        dataloader: A PyTorch DataLoader.
+        epochs: The number of epochs.
+        metrics: Optional dict of torchmetrics.Metric objects.
+        overwrite_progress_bar: If True, mimic a single-line progress bar similar
+            to PyTorch Lightning (old bars overwritten).
+        update_every_n_steps: Update the progress bar and displayed logs every n steps.
+    """
+    assert update_every_n_steps > 0
+    device = training_module.device
+    steps = len(dataloader)
+    stop_training = False
+
+    if metrics:
+        metrics = {name: metric.to(device) for name, metric in metrics.items()}
+
+    losses = []
+    for epoch in range(epochs):
+        if stop_training:
+            break
+
+        # Create a new progress bar for this epoch
+        progress_bar = tqdm(
+            total=steps,
+            desc=f'Epoch {epoch + 1}/{epochs}',
+            leave=not overwrite_progress_bar,  # Leave bar if overwrite is False
+            dynamic_ncols=True,
+        )
+        total_loss = 0.0
+        steps_since_update = 0
+
+        for step, (inputs, targets) in enumerate(dataloader):
+            # Ensure that inputs and targets are on the same device as the model
+            inputs = tree_to_device(inputs, device)
+            targets = tree_to_device(targets, device)
+
+            # Perform a training step
+            outputs, loss, stop_training, logs = training_module.training_step(
+                inputs, targets
+            )
+
+            total_loss += loss.item()
+
+            # Update metrics if provided
+            if metrics:
+                for name, metric in metrics.items():
+                    metric(outputs, targets)
+
+            # Format logs
+            formatted_logs = {'loss': f'{loss:.4e}'}
+            if metrics:
+                for name, metric in metrics.items():
+                    formatted_logs[name] = metric.compute().item()
+            for key, value in logs.items():
+                if isinstance(value, torch.Tensor):
+                    value = value.item()
+                formatted_logs[key] = (
+                    f'{value:.4e}' if isinstance(value, float) else str(value)
+                )
+
+            steps_since_update += 1
+            if (
+                steps_since_update == update_every_n_steps
+                or step == steps - 1
+                or stop_training
+            ):
+                # Update the progress bar and logs
+                progress_bar.update(steps_since_update)
+                progress_bar.set_postfix(formatted_logs)
+                steps_since_update = 0
+
+            if stop_training:
+                # End early, ensure progress bar remains visible
+                progress_bar.leave = True
+                break
+
+        with torch.no_grad():
+            qraw = training_module.model.qtorch.data
+            training_module.model.qtorch.data = qraw / torch.norm(qraw)
+        losses.append(total_loss)
+        # Reset metrics at the end of the epoch
+        if metrics:
+            for metric in metrics.values():
+                metric.reset()
+
+        # Epoch summary
+        avg_loss = total_loss / steps
+        if overwrite_progress_bar:
+            progress_bar.set_postfix({'epoch_avg_loss': f'{avg_loss:.4e}'})
+        else:
+            progress_bar.write(
+                f'Epoch {epoch + 1} complete. Average loss: {avg_loss:.4e}'
+            )
+
+        # Ensure the final progress bar is left visible
+        if epoch == epochs - 1 or stop_training:
+            progress_bar.leave = True
+
+        progress_bar.close()
+
+    # Final training summary
+    if overwrite_progress_bar:
+        print(f'Training complete. Final epoch average loss: {avg_loss:.4e}')
+    return losses
+
+
+def featuremetric_cost(
+    q: torch.Tensor, t: torch.Tensor, camera: CameraModel, patchdescs: torch.Tensor,
+    patchvtxs: torch.Tensor, featmap: torch.Tensor, patchsize: int, a: float=-5, c: float=0.5,
+    device=None
+):
+    """
+    Args:
+        q: quaternion input
+        t: translation input
+    """
+    losses = featuremetric_loss(q, t, camera, patchdescs, patchvtxs, featmap, patchsize, a=a, c=c, device=device)
+    return torch.sum(losses)
 
 
 def infer(opts: InferOpts) -> None:
@@ -562,6 +805,20 @@ def infer(opts: InferOpts) -> None:
             trans_c2w = camera_c2w.T_world_from_eye
 
             trans_m2w = trans_c2w.dot(misc.get_rigid_matrix(pose_est_m2c))
+
+            ### pertrubation code ###
+            # R = trans_m2w[:3, :3]
+            # t = trans_m2w[:3, 3:]
+            # quatnp = quaternion.from_rotation_matrix(R)
+            # qxyzrand = np.random.normal(0, 0.1, 3)
+            # perturb = np.exp(quaternion.from_float_array([1, *qxyzrand]))
+            # quatnppert = perturb * quatnp
+            # txyzrand = np.random.normal(0, 2, 3)
+            # tnppert = t.reshape(-1) + txyzrand
+            # pose_m2w_coarse = structs.ObjectPose(
+            #     R=quaternion.as_rotation_matrix(quatnppert), t=tnppert.reshape(3, 1)
+            # )
+            ### end perturbation code ###
             pose_m2w_coarse = structs.ObjectPose(
                 R=trans_m2w[:3, :3], t=trans_m2w[:3, 3:]
             )
@@ -574,20 +831,50 @@ def infer(opts: InferOpts) -> None:
             # all x_i values
             allxi = repre.vertices[feattempmask]
             Fq = feature_map_chw_proj
-            qtorch = roma.rotmat_to_unitquat(torch.tensor(pose_m2w_coarse.R)).float().to(device).requires_grad_()
-            ttorch = torch.tensor(pose_m2w_coarse.t.reshape(-1)).float().to(device).requires_grad_()
-            optimizer = torch.optim.Adam([qtorch, ttorch], lr=0.01)
 
-            for _ in range(100):
-                optimizer.zero_grad()
-                loss = featuremetric_cost(qtorch, ttorch, orig_camera_c2w, allpi, allxi, Fq, opts.grid_cell_size, device=device)
-                loss.backward()
-                optimizer.step()
-                with torch.no_grad():
-                    qtorch = roma.quat_normalize(qtorch)
+            # qtorch = roma.rotmat_to_unitquat(torch.tensor(pose_m2w_coarse.R)).float().to(device).requires_grad_()
+            # # qtorch = torch.tensor(quaternion.as_float_array(quatnppert)).float().to(device).requires_grad_()
+            # ttorch = torch.tensor(pose_m2w_coarse.t.reshape(-1)).float().to(device).requires_grad_()
+            # # ttorch = torch.tensor(tnppert).float().to(device).requires_grad_()
+            # optimizer = torch.optim.Adam([qtorch, ttorch], lr=opts.lr_refinement)
 
+            # losses = []
+            # for _ in range(opts.max_iters_refinement):
+            #     optimizer.zero_grad()
+            #     loss = featuremetric_cost(qtorch, ttorch, camera_c2w, allpi, allxi, Fq, opts.grid_cell_size, device=device)
+            #     losses.append(loss.detach().cpu().numpy().item())
+            #     loss.backward()
+            #     optimizer.step()
+            #     with torch.no_grad():
+            #         qtorch = roma.quat_normalize(qtorch)
+            
+            patchloader = DataLoader(PatchDataset(allxi, allpi, device=device), batch_size=9999, shuffle=False)
+            posemodel = PoseDescriptorModel(pose_m2w_coarse.R, pose_m2w_coarse.t.reshape(-1), camera_c2w, Fq, 14, device=device).to(device)
+            losses = fit(
+                tlm.training.LevenbergMarquardtModule(
+                    model=posemodel,
+                    loss_fn=RobustLoss(),
+                    learning_rate=1.0,
+                    attempts_per_step=10,
+                    solve_method="qr",
+                    use_vmap=False,
+                ),
+                patchloader,
+                epochs=50,
+            )
+            
+            fig = plt.figure()
+            ax = fig.add_subplot()
+            ax.plot(losses)
+            (output_dir / "losses").mkdir(exist_ok=True)
+            plt.savefig(output_dir / "losses" / f"losses_{i}_{hypothesis_id}.png")
+            plt.close(fig)
+
+            # pose_m2w = structs.ObjectPose(
+            #     R=roma.unitquat_to_rotmat(qtorch).detach().cpu().numpy(), t=ttorch.detach().cpu().numpy().reshape(3, 1)
+            # )
             pose_m2w = structs.ObjectPose(
-                R=roma.unitquat_to_rotmat(qtorch).detach().cpu().numpy(), t=ttorch.detach().cpu().numpy().reshape(3, 1)
+                R=roma.unitquat_to_rotmat(posemodel.qtorch.data).detach().cpu().numpy(), t=posemodel.ttorch.data.detach().cpu().numpy().reshape(3, 1)
             )
 
             # Get image for visualization.
