@@ -41,6 +41,24 @@ class Timer:
         else:
             return None
 
+def convertunits(value, unitsrc, unitout):
+    """
+    Use meters as a middleman to convert between units.
+
+    Consequently, don't use extremely tiny units or else precision becomes
+    and issue.
+    """
+    m2unit = {
+        "m": 1.0,
+        "cm": 100.0,
+        "mm": 1000.0,
+    }
+    if unitsrc == unitout:
+        return value
+    meters = value / m2unit[unitsrc]
+    return meters * m2unit[unitout]
+
+
 def fibonacci_sampling(
     n_pts: int, radius: float = 1.0
 ) -> List[Tuple[float, float, float]]:

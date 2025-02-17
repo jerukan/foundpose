@@ -259,14 +259,14 @@ def create_object_mask(
     object_poses_m2w: Sequence[structs.ObjectPose],
     camera_c2w: structs.CameraModel,
     renderer: renderer_base.RendererBase,
-    obj_in_meters: bool = True,
+    units: str = "m",
     object_colors: Optional[Sequence[structs.Color]] = None,
     object_stickers: Optional[Sequence[str]] = None,
     fg_opacity: float = DEFAULT_FG_OPACITY,
     bg_opacity: float = DEFAULT_BG_OPACITY,
     font_size: int = DEFAULT_FONT_SIZE,
     all_in_one: bool = True,
-) -> List[np.ndarray]:
+) -> np.ndarray:
     """Visualizes meshes of objects in the specified poses.
 
     An object is specified by corresponding items of `object_lids` and
@@ -296,12 +296,9 @@ def create_object_mask(
     object_idx = 0
     image_size = base_image.shape[:2]
 
-    object_mesh = renderer.get_object_model(obj_lid, obj_in_meters=obj_in_meters).copy()
+    object_mesh = renderer.get_object_model(obj_lid, units=units).copy()
 
-    # why does this need to be back in mm?
-    obj_vertices = object_mesh.vertices
-    if not obj_in_meters:
-        obj_vertices *= 1000
+    obj_vertices = misc.convertunits(object_mesh.vertices, "m", units)
 
     vertices = geometry.transform_3d_points_numpy(
         misc.get_rigid_matrix(object_poses_m2w[object_idx]), obj_vertices
@@ -322,15 +319,3 @@ def create_object_mask(
             image[y, x] = [0, 0, 0]  # Set the pixel to black (BGR format)
     
     return image
-
-    # return vis_meshes(
-    #     base_image=base_image,
-    #     meshes_in_w=object_meshes_in_w,
-    #     colors=list(object_colors),
-    #     stickers=stickers,
-    #     camera_c2w=camera_c2w,
-    #     renderer=renderer,
-    #     fg_opacity=fg_opacity,
-    #     bg_opacity=bg_opacity,
-    #     all_in_one=all_in_one,
-    # )

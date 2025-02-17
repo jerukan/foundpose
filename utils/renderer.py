@@ -10,7 +10,7 @@ import time
 import numpy as np
 import trimesh
 import pyrender
-from utils.misc import tensor_to_array, array_to_tensor
+from utils.misc import tensor_to_array, array_to_tensor, convertunits
 from utils import renderer_base, structs
 
 from PIL import Image
@@ -58,7 +58,7 @@ class PyrenderRasterizer(renderer_base.RendererBase):
     def get_object_model(self,
         obj_id: int,
         mesh_color: Optional[structs.Color] = None,
-        obj_in_meters: bool = True,
+        units: str = "m",
         **kwargs: Any,
         ) -> trimesh.Trimesh:
         """Gets the object model.
@@ -67,13 +67,16 @@ class PyrenderRasterizer(renderer_base.RendererBase):
             obj_id: The object ID.
             mesh_color: A single color to be applied to the whole mesh. Original
                 mesh colors are used if not specified.
+            units: specifies the measurement unit of the model.
+        
+        Returns:
+            Trimesh: vertices in meters
         """
 
         # Load the object model.
         object_model_path = self.model_path.format(obj_id=obj_id)
         trimesh_model = trimesh.load(object_model_path)
-        if not obj_in_meters:
-            trimesh_model.vertices = trimesh_model.vertices / 1000.0
+        trimesh_model.vertices = convertunits(trimesh_model.vertices, units, "m")
 
         # Color the model.
         if mesh_color:
@@ -93,7 +96,7 @@ class PyrenderRasterizer(renderer_base.RendererBase):
         obj_id: int,
         model_path: str,
         mesh_color: Optional[structs.Color] = None,
-        obj_in_meters: bool = True,
+        units: str = "m",
         **kwargs: Any,
     ) -> None:
         """Adds an object model to the renderer.
@@ -109,10 +112,8 @@ class PyrenderRasterizer(renderer_base.RendererBase):
 
         # Load the object model.
         if obj_id not in self.object_meshes:
-            
             trimesh_model = trimesh.load(model_path)
-            if not obj_in_meters:
-                trimesh_model.vertices = trimesh_model.vertices / 1000.0
+            trimesh_model.vertices = convertunits(trimesh_model.vertices, units, "m")
             # Color the model.
             if mesh_color:
                 num_vertices = trimesh_model.vertices.shape[0]
@@ -140,7 +141,7 @@ class PyrenderRasterizer(renderer_base.RendererBase):
         render_types: Sequence[RenderType],
         return_tensors: bool = False,
         debug: bool = False,
-        obj_in_meters: bool = True,
+        units: str = "m",
         light_intensity: float = 2.4,
         **kwargs: Any,
     ) -> Dict[RenderType, structs.ArrayData]:
@@ -166,7 +167,7 @@ class PyrenderRasterizer(renderer_base.RendererBase):
             camera_model_c2w=camera_model_c2w,
             render_types=render_types,
             return_tensors=return_tensors,
-            obj_in_meters=obj_in_meters,
+            units=units,
             light_intensity=light_intensity,
             debug=debug,
         )
@@ -178,7 +179,7 @@ class PyrenderRasterizer(renderer_base.RendererBase):
         render_types: Sequence[renderer_base.RenderType],
         mesh_colors: Optional[Sequence[structs.Color]] = None,
         return_tensors: bool = False,
-        obj_in_meters: bool = True,
+        units: str = "m",
         light_intensity: float = 2.4,
         debug: bool = False,
         **kwargs: Any,
@@ -191,9 +192,7 @@ class PyrenderRasterizer(renderer_base.RendererBase):
 
         # Add meshes to the scene.
         for mesh_id, mesh in enumerate(meshes_in_w):
-            if not obj_in_meters:
-                # Scale the mesh from mm to m (expected by pyrender).
-                mesh.vertices /= 1000.0
+            mesh.vertices = convertunits(mesh.vertices, units, "m")
 
             # Color the mesh.
             if mesh_colors:
@@ -212,7 +211,7 @@ class PyrenderRasterizer(renderer_base.RendererBase):
             camera_model_c2w=camera_model_c2w,
             render_types=render_types,
             return_tensors=return_tensors,
-            obj_in_meters=obj_in_meters,
+            units=units,
             light_intensity=light_intensity,
             debug=debug,
         )
@@ -229,7 +228,7 @@ class PyrenderRasterizer(renderer_base.RendererBase):
         camera_model_c2w: structs.CameraModel,
         render_types: Sequence[renderer_base.RenderType],
         return_tensors: bool = False,
-        obj_in_meters: bool = True,
+        units: str = "m",
         light_intensity: float = 2.4,
         debug: bool = False,
     ) -> Dict[renderer_base.RenderType, structs.ArrayData]:
@@ -256,9 +255,8 @@ class PyrenderRasterizer(renderer_base.RendererBase):
         trans_cv2gl = get_opencv_to_opengl_camera_trans()
         trans_c2w = camera_model_c2w.T_world_from_eye.dot(trans_cv2gl)
 
-        # Convert translation from mm to m, as expected by pyrender.
-        if not obj_in_meters:
-            trans_c2w[:3, 3] *= 0.001
+        # Convert translation to m, as expected by pyrender.
+        trans_c2w[:3, 3] = convertunits(trans_c2w[:3, 3], units, "m")
 
         # Camera for rendering.
         camera = pyrender.IntrinsicsCamera(

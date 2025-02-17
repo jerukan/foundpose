@@ -1,0 +1,45 @@
+common_opts:
+  object_path: /scratch/jeyan/barreldata/models3d/barrelsingle-scaled-subdivide.ply
+  output_path: /scratch/jeyan/foundpose/output_barrelddt1
+  cam_json_path: /scratch/jeyan/barreldata/divedata/dive8/barrelddt1/camera.json
+  extractor_name: dinov2_version=vitl14-reg_stride=14_facet=token_layer=18_logbin=0_norm=1
+  grid_cell_size: 14
+  units: m
+  crop: true
+  crop_rel_pad: 0.2
+  crop_size: [420, 420]
+  device: cuda
+gen_templates_opts:
+  num_viewspheres: 1
+  min_num_viewpoints: 57
+  num_inplane_rotations: 14
+  depth_range: [1.0, 3.0]
+  images_per_view: 1
+  max_num_triangles: 20000
+  back_face_culling: false
+  texture_size: [1024, 1024]
+  ssaa_factor: 1
+  background_type: black
+  light_type: multi_directional
+  features_patch_size: 14
+gen_repre_opts:
+  apply_pca: true
+  pca_components: 256
+  cluster_features: true
+  cluster_num: 2048
+  template_desc_opts:
+    desc_type: tfidf
+infer_opts:
+  dataset_path: /scratch/jeyan/barreldata/divedata/dive8/barrelddt1/rgb
+  mask_path: /scratch/jeyan/barreldata/results/barrelddt1/masks
+  use_detections: true
+  match_template_type: tfidf
+  match_top_n_templates: 5
+  match_feat_matching_type: cyclic_buddies
+  match_top_k_buddies: 300
+  pnp_type: opencv
+  pnp_ransac_iter: 400
+  pnp_inlier_thresh: 10
+  final_pose_type: top5_coarse
+  num_preds_factor: 1
+  vis_results: true

@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 
-"""Infers pose from objects."""
-
-import datetime
+"""Infer pose from objects."""
 
 import json
 import os
@@ -10,111 +8,46 @@ from pathlib import Path
 from PIL import Image
 import gc
 import time
-import struct
-
-from typing import List, NamedTuple, Optional, Tuple, Any
+from typing import Any
 
 import cv2
-import imageio
-import visu3d as v3d
 import matplotlib.pyplot as plt
 import numpy as np
-import quaternion
-from tqdm import tqdm
-
 import torch
 from torch import nn
 from torch.utils.data import Dataset, DataLoader
 from torch.utils._pytree import tree_map
+import torch_levenberg_marquardt as tlm
 from torchmetrics import Metric
 import roma
-import torch_levenberg_marquardt as tlm
+from tqdm import tqdm
+import visu3d as v3d
 
 from bop_toolkit_lib import inout
 
 from utils.misc import array_to_tensor, tensor_to_array, tensors_to_arrays
-
-
 from utils import (
     corresp_util,
-    config_util,
-    eval_errors,
     eval_util,
     feature_util,
-    infer_pose_util,
     knn_util,
     misc as misc_util,
     pnp_util,
     projector_util,
     repre_util,
     vis_util,
-    data_util,
     renderer_builder,
     json_util, 
     logging,
     misc,
     structs,
 )
-
 from utils.structs import AlignedBox2f, PinholePlaneCameraModel, CameraModel
-from utils.misc import warp_depth_image, warp_image
+from utils.misc import warp_image
+from utils.run.opts import CommonOpts, InferOpts
 
 
 logger: logging.Logger = logging.get_logger()
-
-
-class InferOpts(NamedTuple):
-    """Options that can be specified via the command line."""
-
-    dataset_path: str
-    mask_path: str
-    object_path: str
-    output_path: str
-    cam_json_path: str
-    use_meters: bool
-    max_sym_disc_step: float = 0.01
-
-    # Cropping options.
-    crop: bool = True
-    crop_rel_pad: float = 0.2
-    crop_size: Tuple[int, int] = (420, 420)
-
-    # Object instance options.
-    use_detections: bool = True
-    num_preds_factor: float = 1.0
-    min_visibility: float = 0.1
-
-    # Feature extraction options.
-    extractor_name: str = "dinov2_vitl14"
-    grid_cell_size: float = 1.0
-    max_num_queries: int = 1000000
-
-    # Feature matching options.
-    match_template_type: str = "tfidf"
-    match_top_n_templates: int = 5
-    match_feat_matching_type: str = "cyclic_buddies"
-    match_top_k_buddies: int = 300
-
-    # PnP options.
-    pnp_type: str = "opencv"
-    pnp_ransac_iter: int = 1000
-    pnp_required_ransac_conf: float = 0.99
-    pnp_inlier_thresh: float = 10.0
-    pnp_refine_lm: bool = True
-
-    final_pose_type: str = "best_coarse"
-
-    # Refinement options
-    max_iters_refinement: int = 2000
-    lr_refinement: float = 0.01
-
-    # Other options.
-    save_estimates: bool = True
-    vis_results: bool = True
-    vis_corresp_top_n: int = 100
-    vis_feat_map: bool = True
-    vis_for_paper: bool = True
-    debug: bool = True
 
 
 def bilinear_interpolate_torch(im, x, y):
@@ -142,6 +75,7 @@ def bilinear_interpolate_torch(im, x, y):
     wd = (x - x0.float()) * (y - y0.float())
 
     return torch.t((torch.t(Ia) * wa)) + torch.t(torch.t(Ib) * wb) + torch.t(torch.t(Ic) * wc) + torch.t(torch.t(Id) * wd)
+
 
 def robustlosstorch(x: torch.Tensor, a=-5, c=0.5):
     """
@@ -219,6 +153,7 @@ def featuremetric_cost(
     losses = featuremetric_loss(q, t, camera, patchdescs, patchvtxs, featmap, patchsize, a=a, c=c, device=device)
     return torch.sum(losses)
 
+
 class PoseDescriptorModel(nn.Module):
     def __init__(self, R, t, camera: CameraModel, featmap: torch.Tensor, patchsize: int, device=None):
         super().__init__()
@@ -238,12 +173,14 @@ class PoseDescriptorModel(nn.Module):
         return self.test(out)
         # return out
 
+
 class RobustLoss(tlm.loss.Loss):
     def forward(self, y_true: torch.Tensor, y_pred: torch.Tensor) -> torch.Tensor:
         return torch.mean(robustlosstorch(y_true - y_pred))
 
     def residuals(self, y_true: torch.Tensor, y_pred: torch.Tensor) -> torch.Tensor:
         return torch.sqrt(robustlosstorch(y_true - y_pred))
+
 
 class PatchDataset(Dataset):
     def __init__(self, patchvtxs: torch.Tensor, patchdescs: torch.Tensor, device=None):
@@ -260,6 +197,7 @@ class PatchDataset(Dataset):
     def __getitem__(self, idx):
         return self.patchvtxs[idx], self.patchdescs[idx]
 
+
 def tree_to_device(tree: Any, device: torch.device | str) -> Any:
     """Recursively move all tensor leaves in a pytree to the specified device.
 
@@ -272,6 +210,7 @@ def tree_to_device(tree: Any, device: torch.device | str) -> Any:
     """
     return tree_map(lambda x: x.to(device) if isinstance(x, torch.Tensor) else x, tree)
 
+
 def fit(
     training_module,
     dataloader: DataLoader,
@@ -280,7 +219,10 @@ def fit(
     overwrite_progress_bar: bool = True,
     update_every_n_steps: int = 1,
 ) -> None:
-    """Fit function with support for TrainingModule and torchmetrics.
+    """
+    From torch_levenberg_marquardt. Modified for projected gradient descent on quaternions.
+    
+    Fit function with support for TrainingModule and torchmetrics.
 
     Trains the model for a specified number of epochs. It supports logging metrics using
     `torchmetrics` and provides detailed progress tracking using `tqdm`.
@@ -394,31 +336,31 @@ def fit(
     return losses
 
 
-def infer(opts: InferOpts) -> None:
+def infer(commonopts: CommonOpts, opts: InferOpts) -> None:
     dataset_path = Path(opts.dataset_path)
     mask_path = Path(opts.mask_path)
 
     # Prepare a logger and a timer.
-    logger = logging.get_logger(level=logging.INFO if opts.debug else logging.WARNING)
-    timer = misc_util.Timer(enabled=opts.debug)
+    logger = logging.get_logger(level=logging.INFO if commonopts.debug else logging.WARNING)
+    timer = misc_util.Timer(enabled=commonopts.debug)
     timer.start()
 
     # Prepare feature extractor.
-    extractor = feature_util.make_feature_extractor(opts.extractor_name)
+    extractor = feature_util.make_feature_extractor(commonopts.extractor_name)
     # Prepare a device.
     device = "cuda" if torch.cuda.is_available() else "cpu"
     extractor.to(device)
 
     # Create a renderer.
     renderer_type = renderer_builder.RendererType.PYRENDER_RASTERIZER
-    renderer = renderer_builder.build(renderer_type=renderer_type, model_path=opts.object_path)
+    renderer = renderer_builder.build(renderer_type=renderer_type, model_path=commonopts.object_path)
 
     timer.elapsed("Time for setting up the stage")
 
     timer.start()
 
     # The output folder is named with slugified dataset path.
-    output_dir = Path(opts.output_path, "inference")
+    output_dir = Path(commonopts.output_path, "inference")
     os.makedirs(output_dir, exist_ok=True)
 
     # Save parameters to a file.
@@ -432,7 +374,7 @@ def infer(opts: InferOpts) -> None:
     # logger.info(
     #     f"Loading representation for object {0} from dataset {opts.object_dataset}..."
     # )
-    base_repre_dir = Path(opts.output_path, "object_repre")
+    base_repre_dir = Path(commonopts.output_path, "object_repre")
     repre_dir = base_repre_dir
     repre = repre_util.load_object_repre(
         repre_dir=repre_dir,
@@ -475,7 +417,7 @@ def infer(opts: InferOpts) -> None:
     )
 
     # Get the object mesh and meta information.
-    model_path = opts.object_path
+    model_path = commonopts.object_path
     object_mesh = inout.load_ply(model_path)
 
     max_vertices = 1000
@@ -492,7 +434,7 @@ def infer(opts: InferOpts) -> None:
 
         # Camera parameters.
         # transform is from GT, can we just leave as identity?
-        with open(Path(opts.cam_json_path), "r") as f:
+        with open(Path(commonopts.cam_json_path), "r") as f:
             camjson = json.load(f)
         orig_camera_c2w = PinholePlaneCameraModel(
             camjson["width"], camjson["height"],
@@ -504,13 +446,13 @@ def infer(opts: InferOpts) -> None:
         )
 
         # Generate grid points at which to sample the feature vectors.
-        if opts.crop:
-            grid_size = opts.crop_size
+        if commonopts.crop:
+            grid_size = commonopts.crop_size
         else:
             grid_size = orig_image_size
         grid_points = feature_util.generate_grid_points(
             grid_size=grid_size,
-            cell_size=opts.grid_cell_size,
+            cell_size=commonopts.grid_cell_size,
         )
         grid_points = grid_points.to(device)
 
@@ -541,7 +483,7 @@ def infer(opts: InferOpts) -> None:
         timer.start()
 
         # Optional cropping.
-        if not opts.crop:
+        if not commonopts.crop:
             camera_c2w = orig_camera_c2w
             image_np_hwc = orig_image_np_hwc
             mask_modal = orig_mask_modal
@@ -557,8 +499,8 @@ def infer(opts: InferOpts) -> None:
             crop_camera_model_c2w = misc_util.construct_crop_camera(
                 box=crop_box,
                 camera_model_c2w=orig_camera_c2w,
-                viewport_size=opts.crop_size,
-                viewport_rel_pad=opts.crop_rel_pad,
+                viewport_size=commonopts.crop_size,
+                viewport_rel_pad=commonopts.crop_rel_pad,
             )
 
             # Map images to the virtual camera.
@@ -671,7 +613,7 @@ def infer(opts: InferOpts) -> None:
                 top_n_templates=opts.match_top_n_templates,
                 top_k_buddies=opts.match_top_k_buddies,
                 visual_words_knn_index=visual_words_knn_index,
-                debug=opts.debug,
+                debug=commonopts.debug,
             )
 
         times["corresp"] = timer.elapsed("Time for corresp")
@@ -933,7 +875,7 @@ def infer(opts: InferOpts) -> None:
                     inlier_thresh=(opts.pnp_inlier_thresh),
                     object_pose_m2w_coarse=pose_m2w_coarse,
                     pose_eval_dict_coarse=pose_eval_dict_coarse,
-                    obj_in_meters=opts.use_meters,
+                    units=commonopts.units,
                     # For paper visualizations:
                     vis_for_paper=opts.vis_for_paper,
                     extractor=extractor,
@@ -985,14 +927,3 @@ def infer(opts: InferOpts) -> None:
         results_path = os.path.join(output_dir, "estimated-poses.json")
         logger.info("Saving estimated poses to: {}".format(results_path))
         pose_evaluator.save_results_json(results_path)
-
-
-def main() -> None:
-    opts = config_util.load_opts_from_json_or_command_line(
-        InferOpts
-    )[0]
-    infer(opts)
-
-
-if __name__ == "__main__":
-    main()

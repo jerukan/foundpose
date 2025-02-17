@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import cv2
 import numpy as np
+from PIL import Image
 import torch
 import torch.nn.functional as F
 import trimesh
@@ -174,7 +175,7 @@ def set_bg_to_gray(im, bg_thresh, gray_level):
     im[bg_mask.astype(bool)] = gray_level
     return im
 
-
+tmp = 0
 def vis_inference_results(
     base_image: np.ndarray,
     object_repre: repre_util.FeatureBasedObjectRepre,
@@ -201,7 +202,7 @@ def vis_inference_results(
     vis_for_paper: bool = True,
     vis_for_teaser: bool = False,
     extractor: Any = None,
-    obj_in_meters=True,
+    units: str = "m",
 ):
 
     device = feature_map_chw.device
@@ -347,7 +348,7 @@ def vis_inference_results(
                 object_poses_m2w=[object_pose_m2w_coarse],
                 camera_c2w=camera_c2w,
                 renderer=renderer,
-                obj_in_meters=obj_in_meters,
+                units=units,
                 object_colors=[(0.0, 0.0, 0.0)],
                 object_stickers=None,
                 fg_opacity=1.0,
@@ -368,13 +369,16 @@ def vis_inference_results(
             object_poses_m2w=[object_pose_m2w],
             camera_c2w=camera_c2w,
             renderer=renderer,
-            obj_in_meters=obj_in_meters,
+            units=units,
             object_colors=[(0.0, 0.0, 0.0)],
             object_stickers=None,
             fg_opacity=1.0,
             bg_opacity=1.0,
             all_in_one=True,
         )
+        global tmp
+        Image.fromarray(vis_est_pose).save(f"/scratch/jeyan/foundpose/output_duck/inference/vismasktmp/vis_est_pose_{tmp}.png")
+        tmp += 1
         vis = vis_base_util.add_contour_overlay(
             vis,
             vis_est_pose,
@@ -678,4 +682,3 @@ def vis_inference_results(
         vis_tiles.append(vis_base_util.save_plot_to_ndarray())
 
     return vis_tiles
-
