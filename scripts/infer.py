@@ -768,7 +768,7 @@ def infer(opts: InferOpts) -> None:
                             # For paper visualizations:
                             vis_for_paper=opts.vis_for_paper,
                             extractor=extractor,
-                            obj_in_meters=False,
+                            units="mm",
                         )
                         timer.elapsed("Time for visualization")
 

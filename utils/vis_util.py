@@ -326,7 +326,7 @@ def vis_inference_results(
                 object_poses_m2w=[object_pose_m2w_gt],
                 camera_c2w=camera_c2w,
                 renderer=renderer,
-                obj_in_meters=obj_in_meters,
+                units=units,
                 object_colors=[(0.0, 0.0, 0.0)],
                 object_stickers=None,
                 fg_opacity=1.0,
@@ -376,8 +376,9 @@ def vis_inference_results(
             bg_opacity=1.0,
             all_in_one=True,
         )
+        # TODO this is temporary for debugging
         global tmp
-        Image.fromarray(vis_est_pose).save(f"/scratch/jeyan/foundpose/output_duck/inference/vismasktmp/vis_est_pose_{tmp}.png")
+        Image.fromarray(vis_est_pose).save(f"/scratch/jeyan/foundpose/vismasktmp/vis_est_pose_{tmp}.png")
         tmp += 1
         vis = vis_base_util.add_contour_overlay(
             vis,

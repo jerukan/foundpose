@@ -94,7 +94,7 @@ class PyrenderRasterizer(renderer_base.RendererBase):
     def add_object_model(
         self,
         obj_id: int,
-        model_path: str,
+        model_path: str = None,
         mesh_color: Optional[structs.Color] = None,
         units: str = "m",
         **kwargs: Any,
@@ -106,10 +106,10 @@ class PyrenderRasterizer(renderer_base.RendererBase):
             mesh_color: A single color to be applied to the whole mesh. Original
                 mesh colors are used if not specified.
         """
-        
         if obj_id in self.object_scenes:
             return
-
+        if model_path is None:
+            model_path = self.model_path.format(obj_id=obj_id)
         # Load the object model.
         if obj_id not in self.object_meshes:
             trimesh_model = trimesh.load(model_path)
@@ -159,7 +159,7 @@ class PyrenderRasterizer(renderer_base.RendererBase):
         """
         # Create a scene for the object model if it does not exist yet.
         if obj_id not in self.object_scenes:
-            self.add_object_model(obj_id)
+            self.add_object_model(obj_id, units=units)
 
         # Render the scene.
         return self._render_scene(

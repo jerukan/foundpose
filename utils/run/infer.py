@@ -353,7 +353,8 @@ def infer(commonopts: CommonOpts, opts: InferOpts) -> None:
 
     # Create a renderer.
     renderer_type = renderer_builder.RendererType.PYRENDER_RASTERIZER
-    renderer = renderer_builder.build(renderer_type=renderer_type, model_path=commonopts.object_path)
+    renderer = renderer_builder.build(renderer_type=renderer_type)
+    renderer.add_object_model(obj_id=0, model_path=commonopts.object_path, debug=True, units=commonopts.units)
 
     timer.elapsed("Time for setting up the stage")
 

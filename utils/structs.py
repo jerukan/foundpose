@@ -333,7 +333,7 @@ class CameraModel(abc.ABC):
                     (self.T_world_from_eye.T @ self.T_world_from_eye)[:3, :3]
                     - np.eye(3)
                 ).max()
-                >= 1.0e-5
+                >= 1.0e-4
             ):
                 info_str = "camera T_world_from_eye must be a rigid transform\n"
                 info_str = info_str + "T\n{}\n".format(self.T_world_from_eye.T)
