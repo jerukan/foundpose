@@ -21,8 +21,6 @@ class CommonOpts(NamedTuple):
 
 
 class GenTemplatesOpts(NamedTuple):
-    light_intensity: float = 10.0
-
     # Viewpoint options.
     num_viewspheres: int = 1
     min_num_viewpoints: int = 57
@@ -36,6 +34,7 @@ class GenTemplatesOpts(NamedTuple):
     texture_size: Tuple[int, int] = (1024, 1024)
 
     # Rendering options.
+    light_intensity: float = 10.0
     ssaa_factor: float = 4.0
     background_type: str = "black"
     light_type: str = "multi_directional"
