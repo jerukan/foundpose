@@ -1,7 +1,7 @@
 common_opts:
   object_path: /scratch/jeyan/barreldata/models3d/depth_charge_mark_9_mod_1-scaled.ply
   output_path: /scratch/jeyan/foundpose/output_dive3-depthcharge-03-04
-  cam_json_path: /scratch/jeyan/barreldata/divedata/dive3/dive3-depthcharge-03-04-custom/camera_tmp.json
+  cam_json_path: /scratch/jeyan/barreldata/divedata/dive3/dive3-depthcharge-03-04/camera.json
   extractor_name: dinov2_version=vitl14-reg_stride=14_facet=token_layer=18_logbin=0_norm=1
   grid_cell_size: 14
   units: m
@@ -30,8 +30,8 @@ gen_repre_opts:
   template_desc_opts:
     desc_type: tfidf
 infer_opts:
-  dataset_path: /scratch/jeyan/barreldata/divedata/dive3/dive3-depthcharge-03-04-custom/rgb
-  mask_path: /scratch/jeyan/barreldata/divedata/dive3/dive3-depthcharge-03-04-custom/mask
+  dataset_path: /scratch/jeyan/barreldata/divedata/dive3/dive3-depthcharge-03-04/rgb
+  mask_path: /scratch/jeyan/barreldata/results/dive3-depthcharge-03-04/masks
   use_detections: true
   match_template_type: tfidf
   match_top_n_templates: 5
