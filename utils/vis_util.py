@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import cv2
 import numpy as np
+from PIL import Image
 import torch
 import torch.nn.functional as F
 import trimesh
@@ -174,7 +175,7 @@ def set_bg_to_gray(im, bg_thresh, gray_level):
     im[bg_mask.astype(bool)] = gray_level
     return im
 
-
+tmp = 0
 def vis_inference_results(
     base_image: np.ndarray,
     object_repre: repre_util.FeatureBasedObjectRepre,
@@ -201,6 +202,7 @@ def vis_inference_results(
     vis_for_paper: bool = True,
     vis_for_teaser: bool = False,
     extractor: Any = None,
+    units: str = "m",
 ):
 
     device = feature_map_chw.device
@@ -242,7 +244,7 @@ def vis_inference_results(
     query_feat_vis = None
     template_feat_vis = None
     if vis_feat_map:
-        template_tensor_chw = array_to_tensor(template).to(torch.float32)/255.0
+        template_tensor_chw = array_to_tensor(template).to(torch.float32) / 255.0
         template_tensor_bchw = template_tensor_chw.unsqueeze(0).to(device)
         extractor_output = extractor(template_tensor_bchw)
         template_feature_map_chw = extractor_output["feature_maps"][0]
@@ -324,6 +326,7 @@ def vis_inference_results(
                 object_poses_m2w=[object_pose_m2w_gt],
                 camera_c2w=camera_c2w,
                 renderer=renderer,
+                units=units,
                 object_colors=[(0.0, 0.0, 0.0)],
                 object_stickers=None,
                 fg_opacity=1.0,
@@ -339,18 +342,19 @@ def vis_inference_results(
 
         # Show contours of the object in the coarse estimated pose.
         if object_pose_m2w_coarse is not None:
-            vis_coarse_est_pose = render_vis_util.vis_posed_meshes_of_objects(
+            vis_coarse_est_pose = render_vis_util.create_object_mask(
                 base_image=np.ones_like(base_image) * 255,
                 object_lids=[object_lid],
                 object_poses_m2w=[object_pose_m2w_coarse],
                 camera_c2w=camera_c2w,
                 renderer=renderer,
+                units=units,
                 object_colors=[(0.0, 0.0, 0.0)],
                 object_stickers=None,
                 fg_opacity=1.0,
                 bg_opacity=1.0,
                 all_in_one=True,
-            )[0]
+            )
             vis = vis_base_util.add_contour_overlay(
                 vis,
                 vis_coarse_est_pose,
@@ -359,30 +363,23 @@ def vis_inference_results(
             )
 
         # Show contours of the object in the final estimated pose.
-        # vis_est_pose = render_vis_util.vis_posed_meshes_of_objects(
-        #     base_image=np.ones_like(base_image) * 255,
-        #     object_lids=[object_lid],
-        #     object_poses_m2w=[object_pose_m2w],
-        #     camera_c2w=camera_c2w,
-        #     renderer=renderer,
-        #     object_colors=[(0.0, 0.0, 0.0)],
-        #     object_stickers=None,
-        #     fg_opacity=1.0,
-        #     bg_opacity=1.0,
-        #     all_in_one=True,
-        # )[0]
         vis_est_pose = render_vis_util.create_object_mask(
             base_image=np.ones_like(base_image) * 255,
             object_lids=[object_lid],
             object_poses_m2w=[object_pose_m2w],
             camera_c2w=camera_c2w,
             renderer=renderer,
+            units=units,
             object_colors=[(0.0, 0.0, 0.0)],
             object_stickers=None,
             fg_opacity=1.0,
             bg_opacity=1.0,
             all_in_one=True,
         )
+        # TODO this is temporary for debugging
+        global tmp
+        Image.fromarray(vis_est_pose).save(f"/scratch/jeyan/foundpose/vismasktmp/vis_est_pose_{tmp}.png")
+        tmp += 1
         vis = vis_base_util.add_contour_overlay(
             vis,
             vis_est_pose,
@@ -446,7 +443,8 @@ def vis_inference_results(
 
         vis_base_util.plot_images(imgs=[tpls_tile], dpi=dpi)
 
-        if not vis_for_paper:
+        # if not vis_for_paper:
+        if True:
             tpls_ids_str = ""
             tpls_scores_str = ""
             for tpl_id in range(len(matched_template_ids)):
@@ -546,7 +544,8 @@ def vis_inference_results(
         h=image_height,
     )
 
-    if not vis_for_paper:
+    # if not vis_for_paper:
+    if True:
         p5, p10, p20, p40, p80 = (
             np.percentile(corresp["nn_dists"], 5),
             np.percentile(corresp["nn_dists"], 10),
@@ -684,4 +683,3 @@ def vis_inference_results(
         vis_tiles.append(vis_base_util.save_plot_to_ndarray())
 
     return vis_tiles
-

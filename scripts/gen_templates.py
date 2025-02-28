@@ -224,7 +224,7 @@ def synthesize_templates(opts: GenTemplatesOpts) -> None:
 
         # Add the model to the renderer.
         model_path = bop_model_props["model_tpath"].format(obj_id=object_lid)
-        renderer.add_object_model(obj_id=object_lid, model_path=model_path, debug=True)
+        renderer.add_object_model(obj_id=object_lid, model_path=model_path, units="mm", debug=True)
 
         # Prepare a metadata list.
         metadata_list = []
@@ -267,6 +267,7 @@ def synthesize_templates(opts: GenTemplatesOpts) -> None:
                     camera_model_c2w=render_camera_model_c2w,
                     render_types=render_types,
                     return_tensors=False,
+                    units="mm",
                     debug=False,
                 )
 

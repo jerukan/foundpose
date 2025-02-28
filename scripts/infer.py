@@ -330,6 +330,7 @@ def infer(opts: InferOpts) -> None:
 
             # Camera parameters.
             orig_camera_c2w = sample.camera
+            logger.info(f"camera info: {orig_camera_c2w}")
             orig_image_size = (
                 orig_camera_c2w.width,
                 orig_camera_c2w.height,
@@ -767,6 +768,7 @@ def infer(opts: InferOpts) -> None:
                             # For paper visualizations:
                             vis_for_paper=opts.vis_for_paper,
                             extractor=extractor,
+                            units="mm",
                         )
                         timer.elapsed("Time for visualization")
 

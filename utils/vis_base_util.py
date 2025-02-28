@@ -359,6 +359,7 @@ def add_contour_overlay(
     render_img,
     color: Optional[Tuple] = (255, 255, 255),
     dilate_iterations: Optional[int] = 1,
+    as_mask: Optional[bool] = False,
 ):
     """
     Overlays object boundaries on a given imaged.
@@ -368,13 +369,17 @@ def add_contour_overlay(
     """
 
     img_t = torch.as_tensor(render_img)
-    mask = torch.zeros_like(img_t)
-    mask[img_t > 0] = 255
-    mask = torch.max(mask, dim=-1)[0]
-    mask_bool = mask.numpy().astype(np.bool_)
 
-    mask_uint8 = (mask_bool.astype(np.uint8) * 255)[:, :, None]
-    mask_rgb = np.concatenate((mask_uint8, mask_uint8, mask_uint8), axis=-1)
+    if as_mask:
+        mask = torch.zeros_like(img_t)
+        mask[img_t > 0] = 255
+        mask = torch.max(mask, dim=-1)[0]
+        mask_bool = mask.numpy().astype(np.bool_)
+
+        mask_uint8 = (mask_bool.astype(np.uint8) * 255)[:, :, None]
+        mask_rgb = np.concatenate((mask_uint8, mask_uint8, mask_uint8), axis=-1)
+    else:
+        mask_rgb = (img_t.numpy() * 255).astype(np.uint8)
 
     canny = cv2.Canny(mask_rgb, threshold1=30, threshold2=100)
 
@@ -438,8 +443,10 @@ def save_plot_to_ndarray():
     fig = plt.gcf()
     fig.canvas.draw()
 
-    data = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
-    data = data.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+    # tostring_rgb got deprecated, need to drop alpha channel I guess
+    data = np.frombuffer(fig.canvas.tostring_argb(), dtype=np.uint8)
+    data = data.reshape(fig.canvas.get_width_height()[::-1] + (4,))
+    data = data[..., 1:]
 
     plt.clf()
     plt.cla()

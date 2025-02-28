@@ -15,6 +15,7 @@ from PIL import Image, ImageDraw, ImageFont
 from utils import logging, structs, geometry, misc
 
 from utils import renderer_base, json_util
+from utils.renderer_base import RenderType
 
 logger: logging.Logger = logging.get_logger()
 
@@ -259,13 +260,14 @@ def create_object_mask(
     object_poses_m2w: Sequence[structs.ObjectPose],
     camera_c2w: structs.CameraModel,
     renderer: renderer_base.RendererBase,
+    units: str = "m",
     object_colors: Optional[Sequence[structs.Color]] = None,
     object_stickers: Optional[Sequence[str]] = None,
     fg_opacity: float = DEFAULT_FG_OPACITY,
     bg_opacity: float = DEFAULT_BG_OPACITY,
     font_size: int = DEFAULT_FONT_SIZE,
     all_in_one: bool = True,
-) -> List[np.ndarray]:
+) -> np.ndarray:
     """Visualizes meshes of objects in the specified poses.
 
     An object is specified by corresponding items of `object_lids` and
@@ -295,38 +297,42 @@ def create_object_mask(
     object_idx = 0
     image_size = base_image.shape[:2]
 
-    object_mesh = renderer.get_object_model(obj_lid).copy()
-
-    obj_vertices = object_mesh.vertices*1000
-
-    vertices = geometry.transform_3d_points_numpy(
-        misc.get_rigid_matrix(object_poses_m2w[object_idx]), obj_vertices
+    tfm = object_poses_m2w[object_idx]
+    tfm44inv = np.eye(4)
+    rotinv = tfm.R.T
+    tfm44inv[:3, :3] = rotinv
+    tfm44inv[:3, 3] = -rotinv @ tfm.t.reshape(-1)
+    newcam = camera_c2w.copy(T_world_from_eye=tfm44inv @ camera_c2w.T_world_from_eye)
+    output = renderer.render_object_model(
+        obj_id=obj_lid,
+        camera_model_c2w=newcam,
+        render_types=[RenderType.COLOR, RenderType.DEPTH, RenderType.MASK],
+        return_tensors=False,
+        light_intensity=5.0,
+        debug=False,
+        units=units,
     )
+    image = np.asarray(255.0 * output[RenderType.COLOR], np.uint8)
+
+    # object_mesh = renderer.get_object_model(obj_lid, units=units).copy()
+    # obj_vertices = misc.convertunits(object_mesh.vertices, "m", units)
+
+    # vertices = geometry.transform_3d_points_numpy(
+    #     misc.get_rigid_matrix(object_poses_m2w[object_idx]), obj_vertices
+    # )
     
-    projected_points = camera_c2w.world_to_window(vertices)
+    # projected_points = camera_c2w.world_to_window(vertices)
    
-    image = np.full((image_size[0], image_size[1], 3), 255, dtype=np.uint8)
+    # image = np.full((image_size[0], image_size[1], 3), 255, dtype=np.uint8)
 
-    # Round the projected points to nearest integer pixel indices
-    projected_points_int = np.round(projected_points).astype(int)
+    # # Round the projected points to nearest integer pixel indices
+    # projected_points_int = np.round(projected_points).astype(int)
 
-    h, w = image_size
-    for pt in projected_points_int:
-        x, y = pt
-        # Check if the point is within image bounds
-        if 0 <= x < w and 0 <= y < h:
-            image[y, x] = [0, 0, 0]  # Set the pixel to black (BGR format)
+    # h, w = image_size
+    # for pt in projected_points_int:
+    #     x, y = pt
+    #     # Check if the point is within image bounds
+    #     if 0 <= x < w and 0 <= y < h:
+    #         image[y, x] = [0, 0, 0]  # Set the pixel to black (BGR format)
     
     return image
-
-    # return vis_meshes(
-    #     base_image=base_image,
-    #     meshes_in_w=object_meshes_in_w,
-    #     colors=list(object_colors),
-    #     stickers=stickers,
-    #     camera_c2w=camera_c2w,
-    #     renderer=renderer,
-    #     fg_opacity=fg_opacity,
-    #     bg_opacity=bg_opacity,
-    #     all_in_one=all_in_one,
-    # )

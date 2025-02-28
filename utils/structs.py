@@ -108,7 +108,7 @@ class SceneAnnotation(NamedTuple):
 
     image: Optional[ArrayData] = None
     depth_image: Optional[ArrayData] = None
-    camera: Optional[List[List[Camera]]] = None
+    camera: Optional[List[List[CameraModel]]] = None
     objects_anno: Optional[List[List[ObjectAnnotation]]] = None
 
 class AlignedBox2f:
@@ -333,7 +333,7 @@ class CameraModel(abc.ABC):
                     (self.T_world_from_eye.T @ self.T_world_from_eye)[:3, :3]
                     - np.eye(3)
                 ).max()
-                >= 1.0e-5
+                >= 1.0e-4
             ):
                 info_str = "camera T_world_from_eye must be a rigid transform\n"
                 info_str = info_str + "T\n{}\n".format(self.T_world_from_eye.T)
@@ -351,7 +351,7 @@ class CameraModel(abc.ABC):
 
     def __repr__(self):
         return (
-            f"{type(self).__name__}({self.width}x{self.height}, f={self.f} c={self.c}"
+            f"{type(self).__name__}({self.width}x{self.height}, f={self.f}, c={self.c}, T={self.T_world_from_eye})"
         )
 
     def to_json(self):

@@ -104,7 +104,6 @@ def establish_correspondences(
     # Establish correspondences for each dominant template separately.
     corresps = []
     for template_counter, template_id in enumerate(template_ids):
-
         # Get IDs of features originating from the current template.
         tpl_feat_mask = torch.as_tensor(
             object_repre.feat_to_template_ids == template_id

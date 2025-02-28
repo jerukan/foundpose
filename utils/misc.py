@@ -3,14 +3,12 @@
 """Miscellaneous functions."""
 
 import dataclasses
-from dataclasses import asdict
 import math
 import time
 import cv2
 import uuid
 
 from typing import Any, Dict, List, Optional, Tuple, Type, Union, Mapping
-from collections import namedtuple
 
 import numpy as np
 from PIL import Image
@@ -42,6 +40,24 @@ class Timer:
             return elapsed
         else:
             return None
+
+def convertunits(value, unitsrc, unitout):
+    """
+    Use meters as a middleman to convert between units.
+
+    Consequently, don't use extremely tiny units or else precision becomes
+    and issue.
+    """
+    m2unit = {
+        "m": 1.0,
+        "cm": 100.0,
+        "mm": 1000.0,
+    }
+    if unitsrc == unitout:
+        return value
+    meters = value / m2unit[unitsrc]
+    return meters * m2unit[unitout]
+
 
 def fibonacci_sampling(
     n_pts: int, radius: float = 1.0
@@ -380,10 +396,14 @@ def map_fields(func, obj, only_type=object):
         ty = type(obj)
         if isinstance(obj, Mapping):
             return ty((k, map_fields(func, v, only_type)) for (k, v) in obj.items())
-        else:
-            # NamedTuple or dataclass
+        elif dataclasses.is_dataclass(obj):
             return ty(
-                **{k: map_fields(func, v, only_type) for (k, v) in asdict(obj).items()}
+                **{k: map_fields(func, v, only_type) for (k, v) in dataclasses.asdict(obj).items()}
+            )
+        else:
+            # NamedTuple
+            return ty(
+                **{k: map_fields(func, v, only_type) for (k, v) in obj._asdict().items()}
             )
     elif isinstance(obj, tuple):
         return tuple(map_fields(func, v, only_type) for v in obj)

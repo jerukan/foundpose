@@ -52,7 +52,7 @@ class RendererBase:
 
     def add_object_model(
         self,
-        object_id: int,
+        obj_id: int,
         mesh_color: Optional[structs.Color] = None,
         **kwargs: Any,
     ) -> None:
