@@ -1,14 +1,14 @@
 common_opts:
   object_path: /scratch/jeyan/barreldata/models3d/barrelsingle-scaled-subdivide.ply
-  output_path: /scratch/jeyan/foundpose/output_barrelddt1
-  cam_json_path: /scratch/jeyan/barreldata/divedata/dive8/barrelddt1/camera.json
+  output_path: /scratch/jeyan/foundpose/output_barrel2
+  cam_json_path: /scratch/jeyan/barreldata/divedata/dive8/barrel2/camera.json
   extractor_name: dinov2_version=vitl14-reg_stride=14_facet=token_layer=18_logbin=0_norm=1
   grid_cell_size: 14
   units: m
   crop: true
   crop_rel_pad: 0.2
   crop_size: [420, 420]
-  device: cuda
+  device: cuda:1
 gen_templates_opts:
   light_intensity: 20.0
   num_viewspheres: 1
@@ -31,8 +31,8 @@ gen_repre_opts:
   template_desc_opts:
     desc_type: tfidf
 infer_opts:
-  dataset_path: /scratch/jeyan/barreldata/divedata/dive8/barrelddt1/rgb
-  mask_path: /scratch/jeyan/barreldata/results/barrelddt1/masks
+  dataset_path: /scratch/jeyan/barreldata/divedata/dive8/barrel2/rgb
+  mask_path: /scratch/jeyan/barreldata/results/barrel2/masks
   use_detections: true
   match_template_type: tfidf
   match_top_n_templates: 5

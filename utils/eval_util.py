@@ -285,7 +285,7 @@ class EvaluatorPose:
         score = inliers_est_err[str(int(inlier_radius))]
         logger.info(f"Score for hypothesis {hypothesis_id}: {score}")
 
-        R_est, t_est = trans_m2oc[:3, :3], trans_m2oc[:3, 3:]
+        R_est, t_est = trans_m2oc[:3, :3], trans_m2oc[:3, 3]
 
         self.R.append(R_est)
         self.t.append(t_est)
@@ -304,7 +304,7 @@ class EvaluatorPose:
         if object_pose_m2w_coarse is not None:
             trans_w2oc_coarse = np.linalg.inv(orig_camera_c2w.T_world_from_eye)
             trans_m2oc_coarse = trans_w2oc_coarse.dot(misc.get_rigid_matrix(object_pose_m2w_coarse))
-            R_est_coarse, t_est_coarse = trans_m2oc_coarse[:3, :3], trans_m2oc_coarse[:3, 3:]
+            R_est_coarse, t_est_coarse = trans_m2oc_coarse[:3, :3], trans_m2oc_coarse[:3, 3]
             self.R_coarse.append(R_est_coarse)
             self.t_coarse.append(t_est_coarse)
         else:
