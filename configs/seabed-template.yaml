@@ -10,7 +10,7 @@ common_opts:
   crop: true
   crop_rel_pad: 0.2
   crop_size: [420, 420]
-  device: cuda:1
+  device: cuda
 gen_templates_opts:
   light_intensity: 20.0
   num_viewspheres: 1

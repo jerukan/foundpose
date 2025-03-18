@@ -348,7 +348,10 @@ def infer(commonopts: CommonOpts, opts: InferOpts) -> None:
     # Prepare feature extractor.
     extractor = feature_util.make_feature_extractor(commonopts.extractor_name)
     # Prepare a device.
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    if commonopts.device is None:
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+    else:
+        device = commonopts.device
     extractor.to(device)
 
     # Create a renderer.
