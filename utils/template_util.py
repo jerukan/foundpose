@@ -87,8 +87,7 @@ def calc_tfidf_descriptors(
 
     Ref: https://www.di.ens.fr/~josef/publications/torii13.pdf
     """
-
-    device = feat_words.device.type
+    device = feat_words.device
 
     # Calculate the idf terms (inverted document frequency).
     word_occurances = torch.zeros(len(feat_words), dtype=torch.int64, device=device)
