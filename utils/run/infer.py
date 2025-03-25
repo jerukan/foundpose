@@ -430,10 +430,15 @@ def infer(commonopts: CommonOpts, opts: InferOpts) -> None:
     timer.elapsed("Time for preparing object data")
     
     imgpaths = sorted(list(dataset_path.glob("*.jpg")) + list(dataset_path.glob("*.png")))
+    # assumption: mask names are the same as image names (aside from extension)
     maskpaths = sorted(list(mask_path.glob("*.png")))
+    masknames = [p.stem for p in maskpaths]
 
     # Perform inference on each selected image.
     for i, imgpath in enumerate(imgpaths):
+        if imgpath.stem not in masknames:
+            # skip images without masks
+            continue
         timer.start()
 
         # Camera parameters.
@@ -470,7 +475,8 @@ def infer(commonopts: CommonOpts, opts: InferOpts) -> None:
 
         # Get the modal mask and amodal bounding box of the instance.
         # binary mask
-        orig_mask_modal = np.array(Image.open(maskpaths[i]).convert("L")) / 255.0
+        maskpathsingle = mask_path / f"{imgpath.stem}.png"
+        orig_mask_modal = np.array(Image.open(maskpathsingle).convert("L")) / 255.0
         sumvert = np.sum(orig_mask_modal, axis=0)
         left = np.where(sumvert > 0)[0][0]
         right = np.where(sumvert > 0)[0][-1]
