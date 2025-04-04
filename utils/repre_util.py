@@ -155,7 +155,7 @@ def load_object_repre(
 
     for key, value in object_dict.items():
         if value is not None and (isinstance(value, torch.Tensor)):
-            repre_dict[key] = value
+            repre_dict[key] = value.to(tensor_device)
 
     if object_dict["feat_opts"] is not None and (
         load_fields is None or "feat_opts" in load_fields
