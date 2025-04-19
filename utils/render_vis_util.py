@@ -313,6 +313,7 @@ def create_object_mask(
         units=units,
     )
     image = np.asarray(255.0 * output[RenderType.COLOR], np.uint8)
+    return image
 
     # object_mesh = renderer.get_object_model(obj_lid, units=units).copy()
     # obj_vertices = misc.convertunits(object_mesh.vertices, "m", units)
@@ -335,4 +336,4 @@ def create_object_mask(
     #     if 0 <= x < w and 0 <= y < h:
     #         image[y, x] = [0, 0, 0]  # Set the pixel to black (BGR format)
     
-    return image
+    # return image

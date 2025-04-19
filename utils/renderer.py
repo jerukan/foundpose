@@ -74,9 +74,10 @@ class PyrenderRasterizer(renderer_base.RendererBase):
         """
 
         # Load the object model.
-        object_model_path = self.model_path.format(obj_id=obj_id)
-        trimesh_model = trimesh.load(object_model_path)
-        trimesh_model.vertices = convertunits(trimesh_model.vertices, units, "m")
+        # object_model_path = self.model_path.format(obj_id=obj_id)
+        # trimesh_model = trimesh.load(object_model_path)
+        trimesh_model = self.object_meshes[obj_id]
+        # trimesh_model.vertices = convertunits(trimesh_model.vertices, units, "m")
 
         # Color the model.
         if mesh_color:
@@ -121,7 +122,7 @@ class PyrenderRasterizer(renderer_base.RendererBase):
                     vertex_colors=np.tile(mesh_color, (num_vertices, 1)),
                     mesh=trimesh_model,
                 )
-            self.object_meshes[obj_id]=trimesh_model
+            self.object_meshes[obj_id] = trimesh_model
         else:
             trimesh_model = self.object_meshes[obj_id]
 

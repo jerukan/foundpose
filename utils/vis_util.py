@@ -338,6 +338,7 @@ def vis_inference_results(
                 vis_gt_pose,
                 color=(255, 0, 0),
                 dilate_iterations=1,
+                as_mask=True,
             )
 
         # Show contours of the object in the coarse estimated pose.
@@ -360,6 +361,7 @@ def vis_inference_results(
                 vis_coarse_est_pose,
                 color=(0, 0, 255),
                 dilate_iterations=1,
+                as_mask=True,
             )
 
         # Show contours of the object in the final estimated pose.
@@ -385,6 +387,7 @@ def vis_inference_results(
             vis_est_pose,
             color=(0, 255, 0),
             dilate_iterations=1,
+            as_mask=True,
         )
 
         vis_base_util.plot_images(imgs=[vis], dpi=dpi)
@@ -443,8 +446,7 @@ def vis_inference_results(
 
         vis_base_util.plot_images(imgs=[tpls_tile], dpi=dpi)
 
-        # if not vis_for_paper:
-        if True:
+        if not vis_for_paper:
             tpls_ids_str = ""
             tpls_scores_str = ""
             for tpl_id in range(len(matched_template_ids)):
@@ -544,8 +546,7 @@ def vis_inference_results(
         h=image_height,
     )
 
-    # if not vis_for_paper:
-    if True:
+    if not vis_for_paper:
         p5, p10, p20, p40, p80 = (
             np.percentile(corresp["nn_dists"], 5),
             np.percentile(corresp["nn_dists"], 10),

@@ -863,11 +863,13 @@ def infer(commonopts: CommonOpts, opts: InferOpts) -> None:
                 matched_template_scores = [c["template_score"] for c in corresp]
 
                 timer.start()
+                # TODO change back the coarse/refined stuff (this was for ducks)
                 vis_tiles += vis_util.vis_inference_results(
                     base_image=vis_base_image,
                     object_repre=repre_np,
                     object_lid=0,
-                    object_pose_m2w=pose_m2w, # pose_m2w,
+                    # object_pose_m2w=pose_m2w,
+                    object_pose_m2w=pose_m2w_coarse,
                     object_pose_m2w_gt=None,
                     feature_map_chw=feature_map_chw,
                     feature_map_chw_proj=feature_map_chw_proj,
@@ -883,7 +885,8 @@ def infer(commonopts: CommonOpts, opts: InferOpts) -> None:
                     pose_eval_dict=pose_eval_dict,
                     corresp_top_n=opts.vis_corresp_top_n,
                     inlier_thresh=(opts.pnp_inlier_thresh),
-                    object_pose_m2w_coarse=pose_m2w_coarse,
+                    # object_pose_m2w_coarse=pose_m2w_coarse,
+                    object_pose_m2w_coarse=None,
                     pose_eval_dict_coarse=pose_eval_dict_coarse,
                     units=commonopts.units,
                     # For paper visualizations:
