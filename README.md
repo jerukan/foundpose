@@ -1,3 +1,11 @@
+Preliminary notes: This is a modified version of FoundPose made to work with arbitrary data instead of just BOP data.
+
+I have also reimplemented the featuremetric refinement step and I have convinced myself it works correctly. It sometimes acts up and makes the result worse. I have no idea if this happens in the original implementation.
+
+I will try to update the instructions below sometime later since the new commands I set up are different.
+
+##
+
 <p align="center">
   <h1 align="center">FoundPose <br>Unseen Object Pose Estimation with Foundation Features</h1>
   <p align="center">
