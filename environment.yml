@@ -1,0 +1,39 @@
+name: foundpose_gpu_311
+channels:
+  - defaults
+  - pytorch
+  - nvidia
+  - xformers
+  - conda-forge
+dependencies:
+  - pip=24.3.1
+  - python=3.11.11
+  - faiss-gpu=1.8.0
+  - pytorch-cuda=12
+  - pip:
+    - click==8.1.8
+    - imageio==2.37.0
+    - jupyter==1.1.1
+    - kornia==0.8.0
+    - matplotlib==3.10.0
+    - numpy==1.26.4
+    - numpy-quaternion==2024.0.7
+    - opencv-python==4.10.0.84
+    - pillow==10.4.0
+    - pypng==0.20220715.0
+    - git+https://github.com/jerukan/pyrender.git@d3f349c
+    - pytz==2025.1
+    - pyyaml==6.0.2
+    - roma==1.5.1
+    - scikit-image==0.25.1
+    - scikit-learn==1.6.1
+    - scipy==1.15.1
+    - tabulate==0.9.0
+    - torch==2.4.1
+    - torch-levenberg-marquardt==1.2.1
+    - torchinfo==1.8.0
+    - torchvision==0.19.1
+    - tqdm==4.67.1
+    - trimesh==4.5.3
+    - git+https://github.com/google-research/visu3d.git@f2f4458
+prefix: /opt/miniconda3/envs/barrels

@@ -1,8 +1,18 @@
+# FoundPose fork changes
+
 Preliminary notes: This is a modified version of FoundPose made to work with arbitrary data instead of just BOP data.
 
 I have also reimplemented the featuremetric refinement step and I have convinced myself it works correctly. It sometimes acts up and makes the result worse. I have no idea if this happens in the original implementation.
 
 I will try to update the instructions below sometime later since the new commands I set up are different.
+
+## Environment setup changes
+
+The original Conda environment content has been put into a different file and modified.
+
+```shell
+conda env create --name foundpose_gpu_311 --file environment.yml
+```
 
 ##
 
