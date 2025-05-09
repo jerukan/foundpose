@@ -481,8 +481,8 @@ def infer(commonopts: CommonOpts, opts: InferOpts) -> None:
         left = np.where(sumvert > 0)[0][0]
         right = np.where(sumvert > 0)[0][-1]
         sumhor = np.sum(orig_mask_modal, axis=1)
-        bottom = np.where(sumhor > 0)[0][0]
-        top = np.where(sumhor > 0)[0][-1]
+        bottom = np.where(sumhor > 0)[0][-1]
+        top = np.where(sumhor > 0)[0][0]
         # bounding box of mask
         orig_box_amodal = AlignedBox2f(
             left=left,
