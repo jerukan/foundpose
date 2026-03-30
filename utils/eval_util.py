@@ -68,6 +68,12 @@ class EvaluatorPose:
         self.template_ids = []
         self.R_coarse = []
         self.t_coarse = []
+        # template cosine similarity scores
+        self.template_scores = []
+        # best buddy scores of all features
+        self.coord_match_scores = []
+        # inliner indices from coarse pose estimation
+        self.ransac_inliers = []
 
         self.metrics = {
             "mspd": self.mspd,
@@ -245,6 +251,7 @@ class EvaluatorPose:
         camera_c2w: PinholePlaneCameraModel,
         time_per_inst: Dict,
         corresp: Dict,
+        pose_dict: Dict,
         inlier_radius: float = 10,
         img_path: Union[str, Path]=None,
         template_id: int=None,
@@ -300,6 +307,9 @@ class EvaluatorPose:
         self.hypothesis_ids.append(hypothesis_id)
 
         self.inliers_est_err.append(inliers_est_err)
+        self.template_scores.append(corresp["template_score"])
+        self.coord_match_scores.append(corresp["coord_conf"].tolist())
+        self.ransac_inliers.append(pose_dict["inliers"].tolist())
 
         if object_pose_m2w_coarse is not None:
             trans_w2oc_coarse = np.linalg.inv(orig_camera_c2w.T_world_from_eye)
@@ -349,6 +359,10 @@ class EvaluatorPose:
                         "R_coarse": self.R_coarse[i],
                         "t_coarse": self.t_coarse[i],
                         # "cnos_time": cnos_time,
+                        "inliers_est_err": self.inliers_est_err[i],
+                        "template_score": self.template_scores[i],
+                        "coord_match_scores": self.coord_match_scores[i],
+                        "ransac_inliers": self.ransac_inliers[i],
                     }
                 )
             else:
@@ -372,6 +386,9 @@ class EvaluatorPose:
                         "inliers_est": len(self.inliers_est[i]),
                         "inliers_gt_err": self.inliers_gt_err[i],
                         "inliers_est_err": self.inliers_est_err[i],
+                        "template_score": self.template_scores[i],
+                        "coord_match_scores": self.coord_match_scores[i],
+                        "ransac_inliers": self.ransac_inliers[i],
                     }
                 )
 

@@ -829,6 +829,7 @@ def infer(commonopts: CommonOpts, opts: InferOpts) -> None:
             best_corresp_np = tensors_to_arrays(
                 corresp[final_pose["corresp_id"]]
             )
+            final_pose_np = tensors_to_arrays(final_pose)
 
             # IDs and scores of the matched templates.
             matched_template_ids = [c["template_id"] for c in corresp]
@@ -850,6 +851,7 @@ def infer(commonopts: CommonOpts, opts: InferOpts) -> None:
                 camera_c2w=orig_camera_c2w,
                 time_per_inst=times,
                 corresp=best_corresp_np,
+                pose_dict=final_pose_np,
                 inlier_radius=(opts.pnp_inlier_thresh),
                 img_path=imgpath,
                 template_id=final_pose["template_id"],
