@@ -71,7 +71,9 @@ class EvaluatorPose:
         # template cosine similarity scores
         self.template_scores = []
         # best buddy scores of all features
-        self.coord_match_scores = []
+        # self.coord_match_scores = []
+        # actual feature dist (not cyclic distance)
+        self.coord_match_dists = []
         # inliner indices from coarse pose estimation
         self.ransac_inliers = []
 
@@ -308,7 +310,8 @@ class EvaluatorPose:
 
         self.inliers_est_err.append(inliers_est_err)
         self.template_scores.append(corresp["template_score"])
-        self.coord_match_scores.append(corresp["coord_conf"].tolist())
+        # self.coord_match_scores.append(corresp["coord_conf"].tolist())
+        self.coord_match_dists.append(corresp["nn_feat_dists"].tolist())
         self.ransac_inliers.append(pose_dict["inliers"].tolist())
 
         if object_pose_m2w_coarse is not None:
@@ -361,7 +364,8 @@ class EvaluatorPose:
                         # "cnos_time": cnos_time,
                         "inliers_est_err": self.inliers_est_err[i],
                         "template_score": self.template_scores[i],
-                        "coord_match_scores": self.coord_match_scores[i],
+                        # "coord_match_scores": self.coord_match_scores[i],
+                        "coord_match_dists": self.coord_match_dists[i],
                         "ransac_inliers": self.ransac_inliers[i],
                     }
                 )
@@ -387,7 +391,8 @@ class EvaluatorPose:
                         "inliers_gt_err": self.inliers_gt_err[i],
                         "inliers_est_err": self.inliers_est_err[i],
                         "template_score": self.template_scores[i],
-                        "coord_match_scores": self.coord_match_scores[i],
+                        # "coord_match_scores": self.coord_match_scores[i],
+                        "coord_match_dists": self.coord_match_dists[i],
                         "ransac_inliers": self.ransac_inliers[i],
                     }
                 )

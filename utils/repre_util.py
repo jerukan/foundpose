@@ -148,7 +148,7 @@ def load_object_repre(
 
     repre_path = os.path.join(repre_dir, "repre.pth")
     logger.info(f"Loading repre from: {repre_path}")
-    object_dict = torch.load(repre_path)
+    object_dict = torch.load(repre_path, map_location=tensor_device)
     logger.info("Repre loaded.")
 
     repre_dict: Dict[str, Any] = {}

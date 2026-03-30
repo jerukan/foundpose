@@ -1,5 +1,8 @@
 import os
-os.environ["PYOPENGL_PLATFORM"] = "egl"
+import sys
+# EGL is Linux-only; on macOS use the default CGL backend for headless rendering
+if sys.platform != "darwin":
+    os.environ["PYOPENGL_PLATFORM"] = "egl"
 
 from enum import Enum
 import logging

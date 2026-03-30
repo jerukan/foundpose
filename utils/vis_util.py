@@ -380,7 +380,7 @@ def vis_inference_results(
         )
         # TODO this is temporary for debugging
         global tmp
-        Image.fromarray(vis_est_pose).save(f"/scratch/jeyan/foundpose/vismasktmp/vis_est_pose_{tmp}.png")
+        # Image.fromarray(vis_est_pose).save(f"/scratch/jeyan/foundpose/vismasktmp/vis_est_pose_{tmp}.png")
         tmp += 1
         vis = vis_base_util.add_contour_overlay(
             vis,

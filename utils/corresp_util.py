@@ -66,7 +66,12 @@ def cyclic_buddies_matching(
     # Returns IDs of the best buddies.
     object_bb_ids = query2obj_nn_ids[query_bb_ids]
 
-    return query_bb_ids, object_bb_ids, bb_dists, bb_scores
+    # actual feature distance, not cyclic distance
+    query_bb_feats = query_features[query_bb_ids]       # (top_k, feat_dim)
+    object_bb_feats = object_features[object_bb_ids]    # (top_k, feat_dim)
+    feat_dists = torch.linalg.norm(query_bb_feats - object_bb_feats, dim=1)
+
+    return query_bb_ids, object_bb_ids, bb_dists, bb_scores, feat_dists
 
 
 def establish_correspondences(
@@ -118,6 +123,7 @@ def establish_correspondences(
                 match_obj_ids,
                 match_dists,
                 match_scores,
+                match_feat_dists,
             ) = cyclic_buddies_matching(
                 query_points=query_points,
                 query_features=query_features,
@@ -149,7 +155,9 @@ def establish_correspondences(
             "coord_2d_ids": coord_2d_ids,
             "coord_3d": coord_3d,
             "coord_conf": coord_conf,
+            "nn_dists": full_query_nn_dists,
             "nn_vertex_ids": nn_vertex_ids,
+            "nn_feat_dists": match_feat_dists,
         }
         # Add items for visualization/debugging.
         if debug:
