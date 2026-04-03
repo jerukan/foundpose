@@ -68,6 +68,8 @@ class EvaluatorPose:
         self.template_ids = []
         self.R_coarse = []
         self.t_coarse = []
+        self.R_sift = []
+        self.t_sift = []
         # template cosine similarity scores
         self.template_scores = []
         # best buddy scores of all features
@@ -258,6 +260,7 @@ class EvaluatorPose:
         img_path: Union[str, Path]=None,
         template_id: int=None,
         object_pose_m2w_coarse: structs.ObjectPose=None,
+        object_pose_m2w_sift: structs.ObjectPose=None,
     ):
 
         # Transformations to the crop camera.
@@ -323,6 +326,17 @@ class EvaluatorPose:
         else:
             self.R_coarse.append(None)
             self.t_coarse.append(None)
+
+        if object_pose_m2w_sift is not None:
+            trans_w2oc_sift = np.linalg.inv(orig_camera_c2w.T_world_from_eye)
+            trans_m2oc_sift = trans_w2oc_sift.dot(misc.get_rigid_matrix(object_pose_m2w_sift))
+            R_est_sift, t_est_sift = trans_m2oc_sift[:3, :3], trans_m2oc_sift[:3, 3]
+            self.R_sift.append(R_est_sift)
+            self.t_sift.append(t_est_sift)
+        else:
+            self.R_sift.append(None)
+            self.t_sift.append(None)
+
         self.img_paths.append(str(img_path))
         self.template_ids.append(template_id)
 
@@ -361,6 +375,8 @@ class EvaluatorPose:
                         "time": self.time[i],
                         "R_coarse": self.R_coarse[i],
                         "t_coarse": self.t_coarse[i],
+                        "R_sift": self.R_sift[i],
+                        "t_sift": self.t_sift[i],
                         # "cnos_time": cnos_time,
                         "inliers_est_err": self.inliers_est_err[i],
                         "template_score": self.template_scores[i],

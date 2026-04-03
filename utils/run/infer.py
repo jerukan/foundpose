@@ -336,6 +336,149 @@ def fit(
     return losses
 
 
+def estimate_pose_sift(
+    template_id: int,
+    templates_metadata: list,
+    template_cam: PinholePlaneCameraModel,
+    query_image_np_hwc: np.ndarray,
+    query_mask: np.ndarray,
+    camera_c2w: PinholePlaneCameraModel,
+    pnp_ransac_iter: int,
+    pnp_inlier_thresh: float,
+    pnp_required_ransac_conf: float,
+    units: str = "mm",
+) -> dict:
+    """Estimate pose with SIFT keypoint matching + PnP RANSAC.
+
+    Detects SIFT features in the (masked) cropped query image and in the
+    (masked) template image, matches them, backprojects template keypoints
+    to 3D model space using the saved depth map, then runs PnP RANSAC.
+
+    Args:
+        template_id: Index into templates_metadata.
+        templates_metadata: List of dicts loaded from templates/metadata.json.
+        template_cam: Camera model for the template (T_world_from_eye = T_model_from_cam).
+        query_image_np_hwc: Cropped query image as float HxWxC in [0, 1].
+        query_mask: Binary mask for the query image, HxW float in [0, 1].
+        camera_c2w: Crop camera model for the query image.
+        pnp_ransac_iter: RANSAC iteration count for solvePnPRansac.
+        pnp_inlier_thresh: Reprojection error threshold (pixels).
+        pnp_required_ransac_conf: RANSAC confidence.
+        units: Model units (e.g. "mm", "m").
+
+    Returns:
+        Dict with keys: success (bool), R_m2c (3x3 or None), t_m2c (3x1 or None).
+    """
+    fail = {"success": False, "R_m2c": None, "t_m2c": None}
+
+    metadata = templates_metadata[template_id]
+
+    # Load template depth map (mm) and mask from disk.
+    depth_map_mm = inout.load_depth(metadata["depth_map_path"]).astype(np.float32)
+    template_mask_raw = inout.load_im(metadata["binary_mask_path"])
+    template_image_raw = inout.load_im(metadata["rgb_image_path"])
+
+    # Convert depth to model units.
+    depth_map = misc_util.convertunits(depth_map_mm, "mm", units)
+
+    # Prepare grayscale query image with mask.
+    query_uint8 = (query_image_np_hwc * 255).clip(0, 255).astype(np.uint8)
+    if query_uint8.shape[2] == 4:
+        query_uint8 = query_uint8[..., :3]
+    query_gray = cv2.cvtColor(query_uint8, cv2.COLOR_RGB2GRAY)
+    query_mask_uint8 = (query_mask > 0.5).astype(np.uint8) * 255
+
+    # Prepare grayscale template image with mask.
+    if template_image_raw.ndim == 2:
+        template_gray = template_image_raw
+    elif template_image_raw.shape[2] == 4:
+        template_gray = cv2.cvtColor(template_image_raw[..., :3], cv2.COLOR_RGB2GRAY)
+    else:
+        template_gray = cv2.cvtColor(template_image_raw, cv2.COLOR_RGB2GRAY)
+
+    if template_mask_raw.ndim == 3:
+        template_mask_bin = template_mask_raw[..., 0]
+    else:
+        template_mask_bin = template_mask_raw
+    template_mask_uint8 = (template_mask_bin > 0).astype(np.uint8) * 255
+
+    # Detect SIFT keypoints and descriptors.
+    sift = cv2.SIFT_create()
+    kp_q, des_q = sift.detectAndCompute(query_gray, query_mask_uint8)
+    kp_t, des_t = sift.detectAndCompute(template_gray, template_mask_uint8)
+
+    if des_q is None or des_t is None or len(kp_q) < 4 or len(kp_t) < 4:
+        return fail
+
+    # Match with BFMatcher + Lowe's ratio test.
+    bf = cv2.BFMatcher()
+    raw_matches = bf.knnMatch(des_q, des_t, k=2)
+
+    good_matches = []
+    for pair in raw_matches:
+        if len(pair) == 2:
+            m, n = pair
+            if m.distance < 0.75 * n.distance:
+                good_matches.append(m)
+
+    if len(good_matches) < 6:
+        return fail
+
+    pts_query = np.float32([kp_q[m.queryIdx].pt for m in good_matches])
+    pts_template = np.float32([kp_t[m.trainIdx].pt for m in good_matches])
+
+    # Backproject matched template keypoints to 3D model space.
+    fx_t, fy_t = template_cam.f
+    cx_t, cy_t = template_cam.c
+    T_model_from_cam = template_cam.T_world_from_eye  # 4x4
+
+    h_t, w_t = depth_map.shape[:2]
+    pts_3d = []
+    pts_2d = []
+    for pt_t, pt_q in zip(pts_template, pts_query):
+        u_t, v_t = pt_t
+        ui, vi = int(round(u_t)), int(round(v_t))
+        if vi < 0 or vi >= h_t or ui < 0 or ui >= w_t:
+            continue
+        d = depth_map[vi, ui]
+        if d <= 0:
+            continue
+        # Backproject to camera space then to model space.
+        p_cam = np.array([(u_t - cx_t) / fx_t * d,
+                          (v_t - cy_t) / fy_t * d,
+                          d], dtype=np.float64)
+        p_model = T_model_from_cam[:3, :3] @ p_cam + T_model_from_cam[:3, 3]
+        pts_3d.append(p_model)
+        pts_2d.append(pt_q)
+
+    if len(pts_3d) < 6:
+        return fail
+
+    pts_3d = np.array(pts_3d, dtype=np.float32)
+    pts_2d = np.array(pts_2d, dtype=np.float32)
+    K = misc_util.get_intrinsic_matrix(camera_c2w)
+
+    try:
+        success, rvec, tvec, inliers = cv2.solvePnPRansac(
+            objectPoints=pts_3d,
+            imagePoints=pts_2d,
+            cameraMatrix=K,
+            distCoeffs=None,
+            iterationsCount=pnp_ransac_iter,
+            reprojectionError=pnp_inlier_thresh,
+            confidence=pnp_required_ransac_conf,
+            flags=cv2.SOLVEPNP_ITERATIVE,
+        )
+    except Exception:
+        return fail
+
+    if not success:
+        return fail
+
+    R_m2c = cv2.Rodrigues(rvec)[0]
+    return {"success": True, "R_m2c": R_m2c, "t_m2c": tvec, "inliers": inliers}
+
+
 def infer(commonopts: CommonOpts, opts: InferOpts) -> None:
     dataset_path = Path(opts.dataset_path)
     mask_path = Path(opts.mask_path)
@@ -387,6 +530,10 @@ def infer(commonopts: CommonOpts, opts: InferOpts) -> None:
 
     logger.info("Object representation loaded.")
     repre_np = repre_util.convert_object_repre_to_numpy(repre)
+
+    # Load template metadata for SIFT depth backprojection.
+    templates_metadata_path = Path(commonopts.output_path, "templates", "metadata.json")
+    templates_metadata = json_util.load_json(templates_metadata_path)
 
     # Build a kNN index from object feature vectors.
     visual_words_knn_index = None
@@ -835,6 +982,32 @@ def infer(commonopts: CommonOpts, opts: InferOpts) -> None:
             matched_template_ids = [c["template_id"] for c in corresp]
             matched_template_scores = [c["template_score"] for c in corresp]
 
+            # Estimate pose using SIFT features + PnP RANSAC as an alternative.
+            sift_result = estimate_pose_sift(
+                template_id=final_pose["template_id"],
+                templates_metadata=templates_metadata,
+                template_cam=repre.template_cameras_cam_from_model[final_pose["template_id"]],
+                query_image_np_hwc=image_np_hwc,
+                query_mask=mask_modal,
+                camera_c2w=camera_c2w,
+                pnp_ransac_iter=opts.pnp_ransac_iter,
+                pnp_inlier_thresh=opts.pnp_inlier_thresh,
+                pnp_required_ransac_conf=opts.pnp_required_ransac_conf,
+                units=commonopts.units,
+            )
+            # Convert SIFT m2c pose to m2w if successful.
+            pose_m2w_sift = None
+            if sift_result["success"]:
+                sift_pose_m2c = structs.ObjectPose(
+                    R=sift_result["R_m2c"], t=sift_result["t_m2c"]
+                )
+                trans_m2w_sift = camera_c2w.T_world_from_eye.dot(
+                    misc.get_rigid_matrix(sift_pose_m2c)
+                )
+                pose_m2w_sift = structs.ObjectPose(
+                    R=trans_m2w_sift[:3, :3], t=trans_m2w_sift[:3, 3:]
+                )
+
             # Skip evaluation if there is no ground truth available, and only keep
             # the estimated poses.
             pose_eval_dict = None
@@ -856,6 +1029,7 @@ def infer(commonopts: CommonOpts, opts: InferOpts) -> None:
                 img_path=imgpath,
                 template_id=final_pose["template_id"],
                 object_pose_m2w_coarse=pose_m2w_coarse,
+                object_pose_m2w_sift=pose_m2w_sift,
             )
 
             # Optionally visualize the results.
