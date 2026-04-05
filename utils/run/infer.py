@@ -403,7 +403,8 @@ def estimate_pose_sift(
     template_mask_uint8 = (template_mask_bin > 0).astype(np.uint8) * 255
 
     # Detect SIFT keypoints and descriptors.
-    sift = cv2.SIFT_create()
+    # using very permissive parameters to get enough keypoints, since the domains are so different
+    sift = cv2.SIFT_create(nfeatures=60, contrastThreshold=0.01, edgeThreshold=None)
     kp_q, des_q = sift.detectAndCompute(query_gray, query_mask_uint8)
     kp_t, des_t = sift.detectAndCompute(template_gray, template_mask_uint8)
 
@@ -418,7 +419,8 @@ def estimate_pose_sift(
     for pair in raw_matches:
         if len(pair) == 2:
             m, n = pair
-            if m.distance < 0.75 * n.distance:
+            # using an even more permissive ratio test than usual to get enough matches, since the domains are so different
+            if m.distance < 0.95 * n.distance:
                 good_matches.append(m)
 
     if len(good_matches) < 6:
